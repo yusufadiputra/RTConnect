@@ -12,6 +12,8 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rtconnect.data.model.StatusIuran
+import com.example.rtconnect.data.repository.AppRepository
 import com.example.rtconnect.data.repository.MockData
 import com.example.rtconnect.ui.components.RTButton
 import com.example.rtconnect.ui.components.RTStatusBadge
@@ -37,14 +40,16 @@ fun BerandaScreen(
     onNavigateToNotifikasi: () -> Unit
 ) {
     val user = MockData.currentUser
-    val tagihan = MockData.currentTagihan
-    val pengumumanTerbaru = MockData.pengumumanList.firstOrNull()
+    val tagihanList by AppRepository.tagihanList.collectAsState()
+    val tagihan = tagihanList.find { it.status == StatusIuran.BELUM_DIBAYAR } ?: tagihanList.firstOrNull() ?: MockData.currentTagihan
+    val pengumumanList by AppRepository.pengumumanList.collectAsState()
+    val pengumumanTerbaru = pengumumanList.firstOrNull() ?: MockData.pengumumanList.firstOrNull()
 
     Scaffold(
         topBar = {
             RTTopAppBar(
                 title = "RT CONNECT",
-                subtitle = "Lingkungan RT 10",
+                subtitle = "Lingkungan RT 06",
                 showBackButton = false,
                 onNotificationClick = onNavigateToNotifikasi
             )

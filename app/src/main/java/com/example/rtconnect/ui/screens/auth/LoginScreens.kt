@@ -47,21 +47,13 @@ fun LoginScreen(
     onLoginAsAdmin: () -> Unit
 ) {
     // Default form state
-    var identifier by remember { mutableStateOf("0812 3456 7890") }
-    var password by remember { mutableStateOf("warga123") }
+    var identifier by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var showBantuanDialog by remember { mutableStateOf(false) }
+    var showGantiPasswordDialog by remember { mutableStateOf(false) }
+    var successNotification by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    // Auto detect role berdasarkan identifier
-    val detectedRole = remember(identifier) {
-        val lower = identifier.lowercase().trim()
-        if (lower.contains("admin") || lower.contains("rt") || lower.startsWith("ketua")) {
-            LoginRole.ADMIN
-        } else {
-            LoginRole.WARGA
-        }
-    }
 
     fun executeLogin() {
         if (identifier.isBlank() || password.isBlank()) {
@@ -70,12 +62,16 @@ fun LoginScreen(
         }
         errorMessage = null
 
-        if (detectedRole == LoginRole.ADMIN) {
-            AppRepository.switchUserRole(UserRole.ADMIN)
-            onLoginAsAdmin()
+        val result = AppRepository.login(identifier, password)
+        if (result.isSuccess) {
+            val user = result.getOrNull()!!
+            if (user.role == com.example.rtconnect.data.model.UserRole.ADMIN) {
+                onLoginAsAdmin()
+            } else {
+                onLoginAsWarga()
+            }
         } else {
-            AppRepository.switchUserRole(UserRole.WARGA)
-            onLoginAsWarga()
+            errorMessage = result.exceptionOrNull()?.message ?: "Kombinasi akun atau kata sandi salah."
         }
     }
 
@@ -106,7 +102,7 @@ fun LoginScreen(
                     .padding(top = 28.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    // Badge RT 10 & Ikon Lingkungan
+                    // Badge RT 06 & Ikon Lingkungan
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -129,7 +125,7 @@ fun LoginScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Lingkungan RT 10 Digital",
+                                    text = "Lingkungan RT 06 Digital",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         color = Color.White,
                                         fontWeight = FontWeight.SemiBold,
@@ -236,34 +232,22 @@ fun LoginScreen(
                         },
                         placeholder = {
                             Text(
-                                "Contoh: 081234567890 atau ketua.rt10",
+                                "Masukkan nomor ponsel atau email",
                                 color = RTMuted.copy(alpha = 0.7f),
                                 fontSize = 13.sp
                             )
                         },
                         leadingIcon = {
                             Icon(
-                                imageVector = if (detectedRole == LoginRole.ADMIN) Icons.Outlined.AdminPanelSettings else Icons.Outlined.PhoneAndroid,
+                                imageVector = Icons.Outlined.Person,
                                 contentDescription = null,
-                                tint = if (detectedRole == LoginRole.ADMIN) RTTeal else RTNavy
+                                tint = RTNavy
                             )
                         },
                         trailingIcon = {
-                            if (detectedRole == LoginRole.ADMIN) {
-                                Surface(
-                                    color = RTMint,
-                                    shape = RoundedCornerShape(6.dp),
-                                    modifier = Modifier.padding(end = 8.dp)
-                                ) {
-                                    Text(
-                                        text = "Admin RT",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            color = RTTeal,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 10.sp
-                                        ),
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
+                            if (identifier.isNotEmpty()) {
+                                IconButton(onClick = { identifier = "" }) {
+                                    Icon(imageVector = Icons.Outlined.Clear, contentDescription = "Clear", tint = RTMuted)
                                 }
                             }
                         },
@@ -334,22 +318,60 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Lupa Kata Sandi Link
-                    Box(
+                    // Bantuan & Ganti Kata Sandi Link
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.CenterEnd
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Lupa kata sandi?",
+                            text = "Bantuan Masuk",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = RTTeal,
-                                fontWeight = FontWeight.Bold,
+                                color = RTMuted,
                                 fontSize = 12.sp
                             ),
                             modifier = Modifier
                                 .clickable { showBantuanDialog = true }
                                 .padding(vertical = 4.dp)
                         )
+
+                        Text(
+                            text = "Ganti Kata Sandi?",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = RTTeal,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            ),
+                            modifier = Modifier
+                                .clickable {
+                                    errorMessage = null
+                                    successNotification = null
+                                    showGantiPasswordDialog = true
+                                }
+                                .padding(vertical = 4.dp)
+                        )
+                    }
+
+                    if (successNotification != null) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(RTMint)
+                                .padding(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, tint = RTTeal, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = successNotification ?: "",
+                                    color = RTNavy,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -368,11 +390,11 @@ fun LoginScreen(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = if (detectedRole == LoginRole.ADMIN) "Masuk ke Panel Admin RT" else "Masuk ke Beranda Warga",
+                                text = "Masuk",
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = RTWhite,
-                                    fontSize = 14.sp
+                                    fontSize = 15.sp
                                 )
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -432,92 +454,12 @@ fun LoginScreen(
                                 )
                             )
                             Text(
-                                text = "Data keluarga, tagihan sampah, dan laporan terenkripsi khusus untuk warga RT 10.",
+                                text = "Data keluarga, tagihan sampah, dan laporan terenkripsi khusus untuk warga RT 06.",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = RTNavy.copy(alpha = 0.8f),
                                     fontSize = 11.sp,
                                     lineHeight = 15.sp
                                 )
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Quick Demo Preset Selector (Untuk mempermudah testing saat buka)
-                Text(
-                    text = "PILIHAN CEPAT (MODE PENGUJIAN):",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        color = RTMuted,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp,
-                        fontSize = 10.sp
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            identifier = "0812 3456 7890"
-                            password = "warga123"
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (detectedRole == LoginRole.WARGA) RTWhite else Color.Transparent
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (detectedRole == LoginRole.WARGA) RTTeal else RTBorder
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "Akun Warga",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (detectedRole == LoginRole.WARGA) RTTeal else RTText
-                                )
-                            )
-                            Text(
-                                text = "0812 3456 7890",
-                                style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 10.sp)
-                            )
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            identifier = "ketua.rt10"
-                            password = "admin123"
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (detectedRole == LoginRole.ADMIN) RTWhite else Color.Transparent
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (detectedRole == LoginRole.ADMIN) RTTeal else RTBorder
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "Akun Pengurus RT",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (detectedRole == LoginRole.ADMIN) RTTeal else RTText
-                                )
-                            )
-                            Text(
-                                text = "ketua.rt10",
-                                style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 10.sp)
                             )
                         }
                     }
@@ -556,7 +498,7 @@ fun LoginScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Nomor ponsel atau akun Anda didaftarkan langsung oleh Sekretariat RT 10.",
+                        text = "Nomor ponsel atau akun Anda didaftarkan langsung oleh Sekretariat RT 06.",
                         style = MaterialTheme.typography.bodyMedium.copy(color = RTText, fontSize = 13.sp)
                     )
                     Text(
@@ -578,6 +520,236 @@ fun LoginScreen(
             shape = RoundedCornerShape(18.dp)
         )
     }
+
+    // Modal Dialog: Ganti Kata Sandi dari Halaman Login
+    if (showGantiPasswordDialog) {
+        GantiKataSandiLoginDialog(
+            initialIdentifier = identifier,
+            onDismiss = { showGantiPasswordDialog = false },
+            onPasswordChanged = { newPass, usedIdentifier ->
+                password = newPass
+                identifier = usedIdentifier
+                showGantiPasswordDialog = false
+                successNotification = "Kata sandi berhasil diperbarui! Silakan tekan tombol Masuk."
+                errorMessage = null
+            }
+        )
+    }
+}
+
+// Dialog Khusus Ganti Kata Sandi dari Halaman Login
+@Composable
+fun GantiKataSandiLoginDialog(
+    initialIdentifier: String,
+    onDismiss: () -> Unit,
+    onPasswordChanged: (newPassword: String, identifier: String) -> Unit
+) {
+    var identifierInput by remember { mutableStateOf(initialIdentifier) }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var newPassVisible by remember { mutableStateOf(false) }
+    var confirmPassVisible by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var successMessage by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(RTMint),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = RTTeal)
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Ganti Kata Sandi",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = RTNavy,
+                            fontSize = 18.sp
+                        )
+                    )
+                    Text(
+                        text = "Perbarui sandi akun warga / pengurus RT",
+                        style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 11.sp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (successMessage) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(RTMint)
+                            .padding(12.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, tint = RTTeal)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Sandi Berhasil Diperbarui!",
+                                    color = RTNavy,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Kata sandi baru Anda telah aktif. Tekan tombol di bawah untuk langsung menggunakan kata sandi baru.",
+                                color = RTText,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                } else {
+                    if (errorMessage != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(RTDanger)
+                                .padding(10.dp)
+                        ) {
+                            Text(
+                                text = errorMessage ?: "",
+                                color = RTRed,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Email atau Nomor WhatsApp Terdaftar *",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = RTText)
+                    )
+                    OutlinedTextField(
+                        value = identifierInput,
+                        onValueChange = { identifierInput = it; errorMessage = null },
+                        placeholder = { Text("Contoh: 081234567891 atau budi@warga.id", color = RTMuted, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+
+                    Text(
+                        text = "Kata Sandi Baru (Min. 6 Karakter) *",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = RTText)
+                    )
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { newPassword = it; errorMessage = null },
+                        placeholder = { Text("Masukkan kata sandi baru", color = RTMuted, fontSize = 12.sp) },
+                        visualTransformation = if (newPassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { newPassVisible = !newPassVisible }) {
+                                Icon(
+                                    imageVector = if (newPassVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = RTMuted
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+
+                    Text(
+                        text = "Konfirmasi Kata Sandi Baru *",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = RTText)
+                    )
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it; errorMessage = null },
+                        placeholder = { Text("Ulangi kata sandi baru", color = RTMuted, fontSize = 12.sp) },
+                        visualTransformation = if (confirmPassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { confirmPassVisible = !confirmPassVisible }) {
+                                Icon(
+                                    imageVector = if (confirmPassVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = RTMuted
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (successMessage) {
+                Button(
+                    onClick = {
+                        onPasswordChanged(newPassword, identifierInput)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RTTeal),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(text = "Masuk Sekarang", color = RTWhite, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Button(
+                    onClick = {
+                        if (identifierInput.isBlank()) {
+                            errorMessage = "Email atau nomor WhatsApp akun wajib diisi."
+                            return@Button
+                        }
+                        if (newPassword.length < 6) {
+                            errorMessage = "Kata sandi baru minimal 6 karakter."
+                            return@Button
+                        }
+                        if (newPassword != confirmPassword) {
+                            errorMessage = "Konfirmasi kata sandi tidak cocok."
+                            return@Button
+                        }
+
+                        val result = AppRepository.resetPasswordByAccountIdentifier(identifierInput, newPassword)
+                        if (result.isSuccess) {
+                            successMessage = true
+                            errorMessage = null
+                        } else {
+                            errorMessage = result.exceptionOrNull()?.message ?: "Gagal mengganti kata sandi."
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RTNavy),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(text = "Simpan Sandi", color = RTWhite, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            if (!successMessage) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(text = "Batal", color = RTMuted)
+                }
+            }
+        },
+        containerColor = RTWhite,
+        shape = RoundedCornerShape(18.dp)
+    )
 }
 
 // Wrapper composables for compatibility

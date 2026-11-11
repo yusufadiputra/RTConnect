@@ -1,5 +1,11 @@
 package com.example.rtconnect.ui.screens.warga
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,26 +25,106 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import coil.compose.AsyncImage
 import com.example.rtconnect.data.model.KategoriLaporan
 import com.example.rtconnect.data.model.Laporan
+import com.example.rtconnect.data.repository.AppRepository
 import com.example.rtconnect.data.repository.MockData
 import com.example.rtconnect.ui.components.RTButton
 import com.example.rtconnect.ui.components.RTStatusBadge
 import com.example.rtconnect.ui.components.RTTopAppBar
 import com.example.rtconnect.ui.theme.*
+import java.io.File
 
 @Composable
 fun LaporMasalahScreen(
     onBackClick: () -> Unit,
     onSubmitSuccess: () -> Unit
 ) {
+    val context = LocalContext.current
     var selectedKategori by remember { mutableStateOf(KategoriLaporan.KEAMANAN) }
     var judul by remember { mutableStateOf("") }
     var lokasi by remember { mutableStateOf("") }
     var deskripsi by remember { mutableStateOf("") }
+    var fotoUri by remember { mutableStateOf<Uri?>(null) }
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+    var showPhotoDialog by remember { mutableStateOf(false) }
+
+    // Launcher: ambil foto dari galeri
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        fotoUri = uri
+    }
+
+    // Launcher: ambil foto dari kamera
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            fotoUri = cameraImageUri
+        }
+    }
+
+    // Launcher: minta izin kamera
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            val photoFile = File.createTempFile("foto_laporan_", ".jpg", context.externalCacheDir)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        }
+    }
+
+    fun openCamera() {
+        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            val photoFile = File.createTempFile("foto_laporan_", ".jpg", context.externalCacheDir)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // Dialog pilih kamera / galeri
+    if (showPhotoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoDialog = false },
+            title = { Text("Lampirkan Foto", fontWeight = FontWeight.Bold) },
+            text = { Text("Pilih sumber foto untuk dilampirkan ke laporan.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPhotoDialog = false
+                    openCamera()
+                }) {
+                    Icon(Icons.Outlined.PhotoCamera, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Kamera")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showPhotoDialog = false
+                    galleryLauncher.launch("image/*")
+                }) {
+                    Icon(Icons.Outlined.PhotoLibrary, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Galeri")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -165,23 +252,52 @@ fun LaporMasalahScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Upload Box
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, RTBorder, RoundedCornerShape(12.dp))
-                    .background(RTWhite)
-                    .clickable { /* Upload photo */ },
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Outlined.PhotoCamera, contentDescription = null, tint = RTTeal)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Lampirkan Foto Bukti (Opsional)",
-                        style = MaterialTheme.typography.labelLarge.copy(color = RTText, fontWeight = FontWeight.SemiBold)
+            if (fotoUri != null) {
+                // Tampilkan preview foto + tombol hapus
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, RTTeal, RoundedCornerShape(12.dp))
+                        .background(RTWhite)
+                ) {
+                    AsyncImage(
+                        model = fotoUri,
+                        contentDescription = "Foto Bukti",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
+                    IconButton(
+                        onClick = { fotoUri = null },
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Hapus foto",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, RTBorder, RoundedCornerShape(12.dp))
+                        .background(RTWhite)
+                        .clickable { showPhotoDialog = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Outlined.PhotoCamera, contentDescription = null, tint = RTTeal)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Lampirkan Foto Bukti (Opsional)",
+                            style = MaterialTheme.typography.labelLarge.copy(color = RTText, fontWeight = FontWeight.SemiBold)
+                        )
+                    }
                 }
             }
 
@@ -189,7 +305,19 @@ fun LaporMasalahScreen(
 
             RTButton(
                 text = "Kirim Laporan ke Pengurus RT",
-                onClick = onSubmitSuccess,
+                onClick = {
+                    val newLaporan = Laporan(
+                        judul = if (judul.isBlank()) "Laporan Lingkungan" else judul,
+                        kategori = selectedKategori,
+                        deskripsi = deskripsi,
+                        lokasi = if (lokasi.isBlank()) "Area RT 06" else lokasi,
+                        tanggal = "Hari ini",
+                        pelapor = AppRepository.currentUser.value.fullName,
+                        pelaporPhone = AppRepository.currentUser.value.phoneNumber
+                    )
+                    AppRepository.addLaporan(newLaporan)
+                    onSubmitSuccess()
+                },
                 enabled = judul.isNotBlank() || deskripsi.isNotBlank()
             )
 
@@ -282,7 +410,7 @@ fun LaporanTerkirimScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Laporan Anda telah diteruskan ke pengurus RT 10 dan akan segera ditindaklanjuti. Anda dapat memantau status penanganannya.",
+                text = "Laporan Anda telah diteruskan ke pengurus RT 06 dan akan segera ditindaklanjuti. Anda dapat memantau status penanganannya.",
                 style = MaterialTheme.typography.bodyMedium.copy(
                     color = RTMuted,
                     fontSize = 14.sp
@@ -305,13 +433,13 @@ fun StatusLaporanScreen(
     onLaporBaruClick: () -> Unit,
     onDetailClick: (String) -> Unit
 ) {
-    val laporanList = MockData.laporanList
+    val laporanList by AppRepository.laporanList.collectAsState()
 
     Scaffold(
         topBar = {
             RTTopAppBar(
                 title = "Status Laporan",
-                subtitle = "Keluhan lingkungan RT 10",
+                subtitle = "Keluhan lingkungan RT 06",
                 showBackButton = false,
                 showNotification = false
             )
@@ -418,7 +546,8 @@ fun DetailLaporanScreen(
     laporanId: String,
     onBackClick: () -> Unit
 ) {
-    val laporan = MockData.laporanList.find { it.id == laporanId } ?: MockData.laporanList.first()
+    val laporanList by AppRepository.laporanList.collectAsState()
+    val laporan = laporanList.find { it.id == laporanId } ?: laporanList.firstOrNull() ?: MockData.laporanList.first()
 
     Scaffold(
         topBar = {

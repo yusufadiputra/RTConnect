@@ -97,7 +97,7 @@ fun AdminBottomBar(
 @Composable
 fun AdminTopAppBar(
     title: String = "RT CONNECT",
-    subtitle: String = "Panel Ketua RT 10",
+    subtitle: String = "Panel Ketua RT 06",
     unreadNotifCount: Int = 2,
     onNotificationClick: () -> Unit = {},
     showBack: Boolean = false,
@@ -273,16 +273,16 @@ fun AdminNavigationDrawerContent(
                         )
                     )
                     Text(
-                        text = "Bpk. Bambang • Ketua RT 10",
+                        text = "Bpk. Bambang • Ketua RT 06",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = RTWhite.copy(alpha = 0.85f),
                             fontSize = 13.sp
                         )
                     )
                     Text(
-                        text = "Lingkungan RT 10 / RW 05",
+                        text = "Lingkungan RT 06 / RW 05",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = RTMuted.copy(alpha = 0.8f),
+                            color = RTWhite.copy(alpha = 0.65f),
                             fontSize = 11.sp
                         )
                     )
@@ -398,7 +398,7 @@ fun AdminNavigationDrawerContent(
                     .padding(horizontal = 20.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text = "RT CONNECT Mobile • Panel Administrasi RT 10",
+                    text = "RT CONNECT Mobile • Panel Administrasi RT 06",
                     style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 10.sp)
                 )
             }
@@ -708,9 +708,9 @@ fun EmptyStateView(
             Button(
                 onClick = onActionClick,
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RTTeal)
+                colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite)
             ) {
-                Text(text = actionText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(text = actionText, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RTWhite)
             }
         }
     }
@@ -744,7 +744,7 @@ fun ConfirmationDialog(
                 ),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text(text = confirmText, fontWeight = FontWeight.Bold)
+                Text(text = confirmText, fontWeight = FontWeight.Bold, color = RTWhite)
             }
         },
         dismissButton = {

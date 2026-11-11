@@ -15,3 +15,4 @@ val RTAmber = Color(0xFF95620D)       // Warning Amber Text
 val RTWarning = Color(0xFFFFF4DA)     // Warning Amber Background
 val RTRed = Color(0xFFB53E48)         // Danger / Red Text
 val RTDanger = Color(0xFFFFF0F1)      // Danger Background
+val RTWhatsApp = Color(0xFF25D366)    // WhatsApp Brand Accent

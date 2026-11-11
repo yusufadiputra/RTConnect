@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +29,7 @@ import com.example.rtconnect.ui.components.AdminTopAppBar
 import com.example.rtconnect.ui.components.ConfirmationDialog
 import com.example.rtconnect.ui.components.EmptyStateView
 import com.example.rtconnect.ui.components.RTStatusBadge
+import com.example.rtconnect.util.WhatsAppHelper
 import com.example.rtconnect.ui.theme.*
 import java.util.UUID
 
@@ -54,7 +56,7 @@ fun KelolaLaporanAdminScreen(
         topBar = {
             AdminTopAppBar(
                 title = "Manajemen Laporan",
-                subtitle = "Tindak lanjut keluhan warga RT 10",
+                subtitle = "Tindak lanjut keluhan warga RT 06",
                 showBack = false
             )
         },
@@ -159,6 +161,12 @@ fun LaporanAdminCard(
     onHandleClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val wargaList by AppRepository.wargaList.collectAsState()
+    val pelaporWarga = remember(laporan.pelapor, wargaList) {
+        wargaList.find { it.namaKepalaKeluarga.contains(laporan.pelapor, ignoreCase = true) || laporan.pelapor.contains(it.namaKepalaKeluarga, ignoreCase = true) }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, RTBorder, RoundedCornerShape(14.dp)),
         colors = CardDefaults.cardColors(containerColor = RTWhite),
@@ -201,6 +209,24 @@ fun LaporanAdminCard(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = RTBorder)
 
+            if (pelaporWarga != null) {
+                Button(
+                    onClick = {
+                        val message = "Halo Bapak/Ibu ${laporan.pelapor}, terkait laporan lingkungan Anda: '${laporan.judul}', kami dari Pengurus RT 06..."
+                        WhatsAppHelper.openWhatsApp(context, pelaporWarga.noHp, message)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RTWhatsApp, contentColor = RTWhite),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().height(34.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Chat, contentDescription = "WhatsApp", modifier = Modifier.size(15.dp), tint = RTWhite)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "Hubungi Pelapor via WhatsApp (${pelaporWarga.noHp})", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RTWhite)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
                     Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Hapus", tint = RTRed, modifier = Modifier.size(18.dp))
@@ -210,12 +236,12 @@ fun LaporanAdminCard(
                     onClick = onHandleClick,
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.height(34.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RTNavy),
+                    colors = ButtonDefaults.buttonColors(containerColor = RTNavy, contentColor = RTWhite),
                     contentPadding = PaddingValues(horizontal = 14.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(imageVector = Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(16.dp), tint = RTWhite)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Tindak Lanjut & Tanggapan", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Tindak Lanjut & Tanggapan", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RTWhite)
                 }
             }
         }
@@ -271,9 +297,9 @@ fun TindakLanjutLaporanDialog(
                     Button(
                         onClick = { onSave(status, tanggapan) },
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal)
+                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite)
                     ) {
-                        Text("Simpan & Kirim", fontWeight = FontWeight.Bold)
+                        Text("Simpan & Kirim", fontWeight = FontWeight.Bold, color = RTWhite)
                     }
                 }
             }
@@ -297,7 +323,7 @@ fun KelolaPengumumanAdminScreen(
         topBar = {
             AdminTopAppBar(
                 title = "Manajemen Pengumuman",
-                subtitle = "Publikasi kabar kegiatan RT 10",
+                subtitle = "Publikasi kabar kegiatan RT 06",
                 showBack = true,
                 onBackClick = onBackClick
             )
@@ -337,8 +363,8 @@ fun KelolaPengumumanAdminScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(text = item.judul, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = RTNavy, fontSize = 15.sp), modifier = Modifier.weight(1f))
                             if (!item.isPublished) {
-                                Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(RTBorder).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                                    Text(text = "DRAFT", style = MaterialTheme.typography.labelSmall.copy(color = RTMuted, fontWeight = FontWeight.Bold, fontSize = 9.sp))
+                                Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(RTMuted).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                                    Text(text = "DRAFT", style = MaterialTheme.typography.labelSmall.copy(color = RTWhite, fontWeight = FontWeight.Bold, fontSize = 9.sp))
                                 }
                             } else if (item.penting) {
                                 Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(RTDanger).padding(horizontal = 6.dp, vertical = 2.dp)) {
@@ -418,7 +444,7 @@ fun PengumumanFormDialog(
     var isi by remember { mutableStateOf(initial?.isi ?: "") }
     var tanggal by remember { mutableStateOf(initial?.tanggal ?: "15 Nov 2026") }
     var waktu by remember { mutableStateOf(initial?.waktu ?: "07.00 WIB") }
-    var lokasi by remember { mutableStateOf(initial?.lokasi ?: "Pos RT 10") }
+    var lokasi by remember { mutableStateOf(initial?.lokasi ?: "Pos RT 06") }
     var penting by remember { mutableStateOf(initial?.penting ?: false) }
     var isPublished by remember { mutableStateOf(initial?.isPublished ?: true) }
 
@@ -481,9 +507,9 @@ fun PengumumanFormDialog(
                             onSave(p)
                         },
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RTNavy)
+                        colors = ButtonDefaults.buttonColors(containerColor = RTNavy, contentColor = RTWhite)
                     ) {
-                        Text("Simpan", fontWeight = FontWeight.Bold)
+                        Text("Simpan", fontWeight = FontWeight.Bold, color = RTWhite)
                     }
                 }
             }
@@ -507,7 +533,7 @@ fun KelolaBansosAdminScreen(
         topBar = {
             AdminTopAppBar(
                 title = "Manajemen Bantuan Sosial",
-                subtitle = "Data tertutup & penyaluran bansos RT 10",
+                subtitle = "Data tertutup & penyaluran bansos RT 06",
                 showBack = true,
                 onBackClick = onBackClick
             )
@@ -558,7 +584,7 @@ fun KelolaBansosAdminScreen(
                 ) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(RTWarning).padding(12.dp)) {
-                            Text(text = "Data penerima bansos bersifat rahasia dan hanya dapat diakses oleh Pengurus RT 10.", fontSize = 11.sp, color = RTAmber, fontWeight = FontWeight.Bold)
+                            Text(text = "Data penerima bansos bersifat rahasia dan hanya dapat diakses oleh Pengurus RT 06.", fontSize = 11.sp, color = RTAmber, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -581,9 +607,9 @@ fun KelolaBansosAdminScreen(
                                         onClick = { AppRepository.updateStatusPenyaluran(item.id, "Disalurkan") },
                                         modifier = Modifier.fillMaxWidth().height(34.dp),
                                         shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal)
+                                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite)
                                     ) {
-                                        Text("Tandai Telah Disalurkan", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("Tandai Telah Disalurkan", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RTWhite)
                                     }
                                 }
                             }

@@ -12,49 +12,42 @@ val RTTypography = Typography(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
         fontSize = 40.sp,
-        lineHeight = 60.sp,
-        color = RTText
+        lineHeight = 60.sp
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
-        lineHeight = 42.sp,
-        color = RTText
+        lineHeight = 42.sp
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp,
-        lineHeight = 30.sp,
-        color = RTText
+        lineHeight = 30.sp
     ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
-        lineHeight = 21.sp,
-        color = RTText
+        lineHeight = 21.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
-        lineHeight = 21.sp,
-        color = RTMuted
+        lineHeight = 21.sp
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
-        lineHeight = 21.sp,
-        color = RTText
+        lineHeight = 21.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
-        lineHeight = 18.sp,
-        color = RTMuted
+        lineHeight = 18.sp
     )
 )

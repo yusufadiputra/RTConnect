@@ -13,13 +13,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.rtconnect.data.repository.AppRepository
 import com.example.rtconnect.data.repository.MockData
 import com.example.rtconnect.ui.components.RTButton
 import com.example.rtconnect.ui.components.RTTopAppBar
@@ -30,13 +32,13 @@ fun PengumumanScreen(
     onDetailClick: (String) -> Unit,
     onBackClick: () -> Unit
 ) {
-    val list = MockData.pengumumanList
+    val list by AppRepository.pengumumanList.collectAsState()
 
     Scaffold(
         topBar = {
             RTTopAppBar(
                 title = "Pengumuman RT",
-                subtitle = "Informasi kegiatan warga RT 10",
+                subtitle = "Informasi kegiatan warga RT 06",
                 showBackButton = true,
                 onBackClick = onBackClick,
                 showNotification = false
@@ -132,7 +134,8 @@ fun DetailPengumumanScreen(
     pengumumanId: String,
     onBackClick: () -> Unit
 ) {
-    val item = MockData.pengumumanList.find { it.id == pengumumanId } ?: MockData.pengumumanList.first()
+    val pengumumanList by AppRepository.pengumumanList.collectAsState()
+    val item = pengumumanList.find { it.id == pengumumanId } ?: pengumumanList.firstOrNull() ?: MockData.pengumumanList.first()
 
     Scaffold(
         topBar = {
@@ -221,7 +224,7 @@ fun BantuanSosialScreen(
         topBar = {
             RTTopAppBar(
                 title = "Bantuan Sosial",
-                subtitle = "Program bantuan untuk warga RT 10",
+                subtitle = "Program bantuan untuk warga RT 06",
                 showBackButton = true,
                 onBackClick = onBackClick,
                 showNotification = false
@@ -247,7 +250,7 @@ fun BantuanSosialScreen(
                         .padding(14.dp)
                 ) {
                     Text(
-                        text = "Program bansos disalurkan secara transparan dan diverifikasi langsung oleh Pengurus RT 10.",
+                        text = "Program bansos disalurkan secara transparan dan diverifikasi langsung oleh Pengurus RT 06.",
                         style = MaterialTheme.typography.bodySmall.copy(color = RTNavy, fontSize = 12.sp)
                     )
                 }
@@ -304,7 +307,7 @@ fun NotifikasiScreen(
 ) {
     val notifs = listOf(
         Pair("Tagihan Iuran Baru", "Iuran sampah bulan November 2026 telah terbit. Silakan bayar sebelum 15 Nov."),
-        Pair("Kerja Bakti Minggu Ini", "Jangan lupa besok Minggu pkl 07.00 WIB kerja bakti di Pos RT 10."),
+        Pair("Kerja Bakti Minggu Ini", "Jangan lupa besok Minggu pkl 07.00 WIB kerja bakti di Pos RT 06."),
         Pair("Laporan Diproses", "Laporan lampu jalan mati di Blok B sedang ditangani petugas.")
     )
 
@@ -370,13 +373,15 @@ fun NotifikasiScreen(
 fun ProfilKeluargaScreen(
     onLogout: () -> Unit
 ) {
+    val currentUser by AppRepository.currentUser.collectAsState()
     val user = MockData.currentUser
+    var showChangePasswordDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             RTTopAppBar(
                 title = "Profil Keluarga",
-                subtitle = "Data kependudukan RT 10",
+                subtitle = "Data kependudukan RT 06",
                 showBackButton = false,
                 showNotification = false
             )
@@ -447,10 +452,54 @@ fun ProfilKeluargaScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     ProfileItemRow("Nomor Kartu Keluarga", user.noKk)
-                    ProfileItemRow("Alamat / Blok", "${user.blokRumah}, RT 10 / RW 04")
+                    ProfileItemRow("Alamat / Blok", "${user.blokRumah}, RT 06 / RW 04")
                     ProfileItemRow("Nomor Ponsel", user.noHp)
                     ProfileItemRow("Jumlah Anggota", "${user.jumlahAnggota} Jiwa")
                     ProfileItemRow("Status Iuran", "Aktif (Iuran Bulanan)")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Keamanan Akun & Ganti Kata Sandi
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, RTBorder, RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = RTWhite)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Keamanan Akun",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTNavy, fontSize = 15.sp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showChangePasswordDialog = true }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(RTMint),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = RTTeal, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "Ganti Kata Sandi Akun", style = MaterialTheme.typography.labelLarge.copy(color = RTText, fontWeight = FontWeight.Bold))
+                            Text(text = "Perbarui kata sandi untuk keamanan akses data warga", style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 11.sp))
+                        }
+                        Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RTMuted, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
 
@@ -473,6 +522,14 @@ fun ProfilKeluargaScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (showChangePasswordDialog) {
+        com.example.rtconnect.ui.screens.admin.ChangePasswordDialog(
+            userId = currentUser.id,
+            title = "Ganti Kata Sandi Warga",
+            onDismiss = { showChangePasswordDialog = false }
+        )
     }
 }
 

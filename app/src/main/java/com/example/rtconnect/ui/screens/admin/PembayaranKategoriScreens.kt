@@ -61,7 +61,7 @@ fun PembayaranSampahScreen(
         topBar = {
             AdminTopAppBar(
                 title = "Pembayaran Sampah",
-                subtitle = "Kelola tagihan & kasir tunai RT 10",
+                subtitle = "Kelola tagihan & kasir tunai RT 06",
                 showBack = false
             )
         },
@@ -258,12 +258,12 @@ fun TagihanCardItem(
                             onClick = onCatatTunaiClick,
                             modifier = Modifier.height(34.dp),
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = RTTeal),
+                            colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite),
                             contentPadding = PaddingValues(horizontal = 10.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp), tint = RTWhite)
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Catat Tunai", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "Catat Tunai", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RTWhite)
                         }
                     }
                 }
@@ -279,7 +279,7 @@ fun CatatTunaiDialog(
     onDismiss: () -> Unit,
     onConfirm: (petugas: String) -> Unit
 ) {
-    var petugasNama by remember { mutableStateOf("H. Supriyadi (Ketua RT 10)") }
+    var petugasNama by remember { mutableStateOf("H. Supriyadi (Ketua RT 06)") }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -326,9 +326,9 @@ fun CatatTunaiDialog(
                     Button(
                         onClick = { onConfirm(petugasNama) },
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal)
+                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite)
                     ) {
-                        Text("Konfirmasi Lunas", fontWeight = FontWeight.Bold)
+                        Text("Konfirmasi Lunas", fontWeight = FontWeight.Bold, color = RTWhite)
                     }
                 }
             }
@@ -374,9 +374,9 @@ fun DetailTagihanDialog(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RTNavy)
+                    colors = ButtonDefaults.buttonColors(containerColor = RTNavy, contentColor = RTWhite)
                 ) {
-                    Text("Tutup Rincian")
+                    Text("Tutup Rincian", color = RTWhite, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -406,7 +406,7 @@ fun KategoriIuranScreen(
         topBar = {
             AdminTopAppBar(
                 title = "Kategori Iuran",
-                subtitle = "Kelola tarif iuran sampah RT 10",
+                subtitle = "Kelola tarif iuran sampah RT 06",
                 showBack = true,
                 onBackClick = onBackClick
             )
@@ -436,7 +436,7 @@ fun KategoriIuranScreen(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(RTMint).padding(14.dp)
                 ) {
                     Text(
-                        text = "Kebijakan tarif iuran dapat disesuaikan dengan musyawarah warga RT 10 tanpa merusak riwayat transaksi yang lalu.",
+                        text = "Kebijakan tarif iuran dapat disesuaikan dengan musyawarah warga RT 06 tanpa merusak riwayat transaksi yang lalu.",
                         style = MaterialTheme.typography.bodySmall.copy(color = RTNavy, fontSize = 12.sp)
                     )
                 }
@@ -540,9 +540,9 @@ fun KategoriFormDialog(
                             onSave(k)
                         },
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RTNavy)
+                        colors = ButtonDefaults.buttonColors(containerColor = RTNavy, contentColor = RTWhite)
                     ) {
-                        Text("Simpan", fontWeight = FontWeight.Bold)
+                        Text("Simpan", fontWeight = FontWeight.Bold, color = RTWhite)
                     }
                 }
             }

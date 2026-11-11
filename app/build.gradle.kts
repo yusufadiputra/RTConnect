@@ -52,6 +52,16 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
 
+    // Networking & Supabase REST API
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+    implementation(libs.gson)
+
+    // Image loading (Coil)
+    implementation(libs.coil.compose)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)

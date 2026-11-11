@@ -31,7 +31,7 @@ fun AdminStatistikScreen(
         topBar = {
             AdminTopAppBar(
                 title = "Statistik Lingkungan",
-                subtitle = "Ringkasan data RT 10",
+                subtitle = "Ringkasan data RT 06",
                 unreadNotifCount = 2,
                 showBack = true,
                 onBackClick = onBackClick,
@@ -65,7 +65,7 @@ fun AdminStatistikScreen(
                         )
                     )
                     Text(
-                        text = "Gambaran pembayaran dan penanganan laporan RT 10.",
+                        text = "Gambaran pembayaran dan penanganan laporan RT 06.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = RTMuted,
                             fontSize = 12.sp
@@ -228,7 +228,7 @@ fun AdminStatistikScreen(
 
             // Footnote
             Text(
-                text = "Sumber data pembayaran dan laporan warga RT 10 • Diperbarui 10 November 2026",
+                text = "Sumber data pembayaran dan laporan warga RT 06 • Diperbarui 10 November 2026",
                 style = MaterialTheme.typography.bodySmall.copy(
                     color = RTMuted,
                     fontSize = 11.sp

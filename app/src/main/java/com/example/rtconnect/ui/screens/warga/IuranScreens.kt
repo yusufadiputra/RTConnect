@@ -11,21 +11,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.example.rtconnect.data.model.StatusIuran
 import com.example.rtconnect.data.model.TagihanIuran
+import com.example.rtconnect.data.repository.AppRepository
 import com.example.rtconnect.data.repository.MockData
 import com.example.rtconnect.ui.components.RTButton
 import com.example.rtconnect.ui.components.RTStatusBadge
 import com.example.rtconnect.ui.components.RTTopAppBar
 import com.example.rtconnect.ui.theme.*
+import com.example.rtconnect.util.WhatsAppHelper
 
 @Composable
 fun BayarIuranScreen(
@@ -152,7 +159,7 @@ fun BayarIuranScreen(
 
             PaymentMethodItem(
                 title = "Tunai ke Bendahara RT",
-                subtitle = "Bayar langsung ke Pos RT 10",
+                subtitle = "Bayar langsung ke Pos RT 06",
                 isSelected = selectedMethod == "cash",
                 onClick = { selectedMethod = "cash" }
             )
@@ -161,7 +168,10 @@ fun BayarIuranScreen(
 
             RTButton(
                 text = "Konfirmasi & Bayar Sekarang",
-                onClick = onPaymentSuccess
+                onClick = {
+                    AppRepository.updateStatusTagihan(tagihan.id, StatusIuran.LUNAS)
+                    onPaymentSuccess()
+                }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -220,6 +230,16 @@ fun PaymentMethodItem(
 fun PembayaranBerhasilScreen(
     onDoneClick: () -> Unit
 ) {
+    var showKuitansi by remember { mutableStateOf(false) }
+    val latestPaid = remember {
+        AppRepository.tagihanList.value.firstOrNull { it.status == StatusIuran.LUNAS }
+            ?: MockData.currentTagihan.copy(status = StatusIuran.LUNAS)
+    }
+
+    if (showKuitansi) {
+        KuitansiPembayaranDialog(tagihan = latestPaid, onDismiss = { showKuitansi = false })
+    }
+
     Scaffold(containerColor = RTCanvas) { paddingValues ->
         Column(
             modifier = Modifier
@@ -258,7 +278,7 @@ fun PembayaranBerhasilScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Iuran Sampah RT 10 bulan November 2026 sebesar Rp20.000 telah lunas tercatat di sistem RT CONNECT.",
+                text = "Iuran Sampah RT 06 bulan November 2026 sebesar Rp20.000 telah lunas tercatat di sistem RT CONNECT.",
                 style = MaterialTheme.typography.bodyMedium.copy(
                     color = RTMuted,
                     fontSize = 14.sp
@@ -266,12 +286,28 @@ fun PembayaranBerhasilScreen(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            RTButton(
-                text = "Kembali ke Beranda",
-                onClick = onDoneClick
-            )
+            Button(
+                onClick = { showKuitansi = true },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite)
+            ) {
+                Icon(imageVector = Icons.Default.ReceiptLong, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Lihat Kuitansi Sah Digital", fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedButton(
+                onClick = onDoneClick,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(text = "Kembali ke Beranda", color = RTText, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
@@ -280,7 +316,16 @@ fun PembayaranBerhasilScreen(
 fun RiwayatIuranScreen(
     onBackClick: () -> Unit = {}
 ) {
-    val riwayat = MockData.riwayatTagihan
+    val tagihanList by AppRepository.tagihanList.collectAsState()
+    val riwayat = tagihanList.filter { it.status == StatusIuran.LUNAS }
+    var selectedKuitansi by remember { mutableStateOf<TagihanIuran?>(null) }
+
+    if (selectedKuitansi != null) {
+        KuitansiPembayaranDialog(
+            tagihan = selectedKuitansi!!,
+            onDismiss = { selectedKuitansi = null }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -303,7 +348,7 @@ fun RiwayatIuranScreen(
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Daftar Transaksi",
+                    text = "Daftar Transaksi (Ketuk untuk Kuitansi)",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = RTText,
@@ -317,7 +362,8 @@ fun RiwayatIuranScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .border(1.dp, RTBorder, RoundedCornerShape(14.dp)),
+                        .border(1.dp, RTBorder, RoundedCornerShape(14.dp))
+                        .clickable { selectedKuitansi = item },
                     colors = CardDefaults.cardColors(containerColor = RTWhite)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -358,14 +404,23 @@ fun RiwayatIuranScreen(
                                 text = "Tanggal: ${item.tanggalBayar ?: item.batasWaktu}",
                                 style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 12.sp)
                             )
-                            Text(
-                                text = "Rp${String.format("%,d", item.nominal).replace(',', '.')}",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = RTNavy,
-                                    fontSize = 16.sp
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Rp${String.format("%,d", item.nominal).replace(',', '.')}",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = RTNavy,
+                                        fontSize = 16.sp
+                                    )
                                 )
-                            )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ReceiptLong,
+                                    contentDescription = "Lihat Kuitansi",
+                                    tint = RTTeal,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -375,5 +430,148 @@ fun RiwayatIuranScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// KUITANSI PEMBAYARAN DIGITAL SAH RT 06
+// -----------------------------------------------------------------------------
+@Composable
+fun KuitansiPembayaranDialog(
+    tagihan: TagihanIuran,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val refNumber = "RTC-06-${tagihan.id.take(8).uppercase()}"
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp)),
+            colors = CardDefaults.cardColors(containerColor = RTWhite),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(RTMint),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = Icons.Default.ReceiptLong, contentDescription = null, tint = RTTeal, modifier = Modifier.size(28.dp))
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "KUITANSI SAH PEMBAYARAN",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = RTMuted, letterSpacing = 1.sp)
+                )
+                Text(
+                    text = "RT 06 / RW 04 KELURAHAN",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTNavy, fontSize = 16.sp)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Badge Stempel Lunas
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(RTMint)
+                        .border(1.dp, RTTeal, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "★ LUNAS TERCATAT SISTEM ★",
+                        style = MaterialTheme.typography.labelSmall.copy(color = RTTeal, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+                HorizontalDivider(color = RTBorder)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Rincian
+                KuitansiRow("No. Referensi", refNumber)
+                KuitansiRow("Jenis Iuran", tagihan.judul)
+                KuitansiRow("Periode", tagihan.periode)
+                KuitansiRow("Metode Bayar", tagihan.metodeBayar ?: "QRIS / Transfer")
+                KuitansiRow("Tanggal Lunas", tagihan.tanggalBayar ?: "Hari ini")
+                KuitansiRow("Petugas Pengurus", tagihan.namaPetugasPencatat ?: "Bendahara RT 06")
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = RTBorder)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "TOTAL DIBAYAR", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = RTText))
+                    Text(
+                        text = "Rp${String.format("%,d", tagihan.nominal).replace(',', '.')}",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, color = RTNavy, fontSize = 20.sp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Tombol Bagikan ke WhatsApp
+                Button(
+                    onClick = {
+                        val receiptText = """
+                            *KUITANSI SAH PEMBAYARAN IURAN RT 06*
+                            ------------------------------------
+                            No. Ref: $refNumber
+                            Jenis: ${tagihan.judul}
+                            Periode: ${tagihan.periode}
+                            Nominal: Rp${String.format("%,d", tagihan.nominal).replace(',', '.')}
+                            Status: LUNAS TERCATAT
+                            Metode: ${tagihan.metodeBayar ?: "Transfer / QRIS"}
+                            Tanggal: ${tagihan.tanggalBayar ?: "Hari ini"}
+                            ------------------------------------
+                            _Diterbitkan secara digital oleh Sistem RT CONNECT RT 06 / RW 04._
+                        """.trimIndent()
+                        WhatsAppHelper.shareTextReceipt(context, "Kuitansi Iuran RT 06", receiptText)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RTWhatsApp, contentColor = RTWhite)
+                ) {
+                    Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Bagikan Kuitansi (WhatsApp)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(40.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(text = "Tutup Kuitansi", color = RTText, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KuitansiRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 12.sp))
+        Text(text = value, style = MaterialTheme.typography.bodySmall.copy(color = RTText, fontWeight = FontWeight.SemiBold, fontSize = 12.sp))
     }
 }

@@ -48,7 +48,7 @@ fun AdminDashboardScreen(
         topBar = {
             AdminTopAppBar(
                 title = "RT CONNECT",
-                subtitle = "ADMIN • RT 10",
+                subtitle = "ADMIN • RT 06",
                 unreadNotifCount = unreadNotifs,
                 onNotificationClick = onNavigateToNotifikasi,
                 onMenuClick = { openDrawer?.invoke() }
@@ -122,7 +122,7 @@ fun AdminDashboardScreen(
                 StatCard(
                     title = "Kepala keluarga",
                     value = "53 KK",
-                    subtitle = "Terdaftar di lingkungan RT 10",
+                    subtitle = "Terdaftar di lingkungan RT 06",
                     modifier = Modifier.weight(1f),
                     onClick = onNavigateToWarga
                 )
@@ -328,7 +328,7 @@ fun AdminDashboardScreen(
                         )
                     )
                     Text(
-                        text = "Minggu, 15 November • 07.00 WIB\nTitik kumpul: Pos RT 10",
+                        text = "Minggu, 15 November • 07.00 WIB\nTitik kumpul: Pos RT 06",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = RTMuted,
                             fontSize = 12.sp,

@@ -15,7 +15,19 @@ data class UserProfile(
     val phoneNumber: String,
     val role: UserRole = UserRole.WARGA,
     val avatarUrl: String? = null,
-    val address: String = "RT 10 / RW 04"
+    val address: String = "RT 06 / RW 04"
+)
+
+// Akun Autentikasi Pengguna (Admin & Warga)
+data class UserAccount(
+    val id: String = UUID.randomUUID().toString(),
+    val email: String,
+    val phoneNumber: String,
+    val password: String = "warga123",
+    val fullName: String,
+    val role: UserRole = UserRole.WARGA,
+    val familyId: String? = null,
+    val blokRumah: String = "RT 06 / RW 04"
 )
 
 // Data Warga / Keluarga
@@ -114,8 +126,8 @@ data class Pengumuman(
     val isi: String,
     val tanggal: String,
     val waktu: String = "07.00 WIB",
-    val lokasi: String = "Pos RT 10",
-    val penulis: String = "Ketua RT 10",
+    val lokasi: String = "Pos RT 06",
+    val penulis: String = "Ketua RT 06",
     val penting: Boolean = false,
     val isPublished: Boolean = true,
     val fotoUrl: String? = null

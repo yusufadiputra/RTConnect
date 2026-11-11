@@ -8,7 +8,7 @@ object MockData {
         namaKepalaKeluarga = "Budi Santoso",
         noKk = "3273010101900001",
         blokRumah = "Blok B No. 12",
-        noHp = "081234567890",
+        noHp = "081234567891",
         jumlahAnggota = 4,
         statusEkonomi = StatusEkonomi.REGULER,
         statusIuran = StatusIuran.BELUM_LUNAS
@@ -70,19 +70,19 @@ object MockData {
         Pengumuman(
             id = "p1",
             judul = "Kerja bakti bersama",
-            isi = "Dihimbau kepada seluruh bapak/ibu warga RT 10 untuk mengikuti kegiatan kerja bakti pembersihan saluran air menjelang musim hujan.",
+            isi = "Dihimbau kepada seluruh bapak/ibu warga RT 06 untuk mengikuti kegiatan kerja bakti pembersihan saluran air menjelang musim hujan.",
             tanggal = "15 Nov 2026",
             waktu = "07.00 WIB",
-            lokasi = "Pos RT 10",
+            lokasi = "Pos RT 06",
             penting = true
         ),
         Pengumuman(
             id = "p2",
             judul = "Pertemuan Bulanan & Arisan RT",
-            isi = "Pertemuan rutin bulanan warga RT 10 membahas laporan kas dan program posyandu lansia.",
+            isi = "Pertemuan rutin bulanan warga RT 06 membahas laporan kas dan program posyandu lansia.",
             tanggal = "20 Nov 2026",
             waktu = "19.30 WIB",
-            lokasi = "Balai Warga RT 10"
+            lokasi = "Balai Warga RT 06"
         ),
         Pengumuman(
             id = "p3",
@@ -90,7 +90,7 @@ object MockData {
             isi = "Puskesmas akan melaksanakan pengasapan (fogging) nyamuk DBD. Mohon tutup makanan dan tempat penampungan air.",
             tanggal = "25 Nov 2026",
             waktu = "08.30 WIB",
-            lokasi = "Seluruh Area RT 10"
+            lokasi = "Seluruh Area RT 06"
         )
     )
 
@@ -110,7 +110,7 @@ object MockData {
             judul = "Saluran Air Tersumbat Sampah",
             kategori = KategoriLaporan.LINGKUNGAN,
             deskripsi = "Saluran air depan gang C tersumbat daun dan lumpur, air meluap saat hujan deras kemarin sore.",
-            lokasi = "Depan Gang C RT 10",
+            lokasi = "Depan Gang C RT 06",
             tanggal = "07 Nov 2026",
             status = StatusLaporan.SELESAI,
             pelapor = "Joko Widodo"
@@ -120,7 +120,7 @@ object MockData {
             judul = "Pohon Tumbang Sebagian",
             kategori = KategoriLaporan.FASILITAS,
             deskripsi = "Dahan pohon rindang dekat lapangan hampir patah dan menghalangi kabel listrik.",
-            lokasi = "Dekat Lapangan RT 10",
+            lokasi = "Dekat Lapangan RT 06",
             tanggal = "10 Nov 2026",
             status = StatusLaporan.BARU,
             pelapor = "Hendra Setiawan"
@@ -133,7 +133,7 @@ object MockData {
             namaKepalaKeluarga = "Budi Santoso",
             noKk = "3273010101900001",
             blokRumah = "Blok B No. 12",
-            noHp = "081234567890",
+            noHp = "081234567891",
             jumlahAnggota = 4,
             statusEkonomi = StatusEkonomi.REGULER,
             statusIuran = StatusIuran.BELUM_LUNAS
@@ -191,7 +191,7 @@ object MockData {
     )
 
     val bantuanSosialList = listOf(
-        BantuanSosial("b1", "Bansos Beras & Sembako Bulanan", "November 2026", "Warga Lansia & Subsidi RT 10", "Tersalurkan", 12),
+        BantuanSosial("b1", "Bansos Beras & Sembako Bulanan", "November 2026", "Warga Lansia & Subsidi RT 06", "Tersalurkan", 12),
         BantuanSosial("b2", "Bantuan Kesehatan & Posyandu Balita", "Oktober 2026", "Balita & Ibu Menyusui", "Selesai", 18),
         BantuanSosial("b3", "Santunan Dana Pendidikan Warga", "Semester Genap 2026", "Keluarga Prasejahtera", "Pendaftaran", 6)
     )

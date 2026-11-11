@@ -1,9 +1,11 @@
 package com.example.rtconnect.ui.components
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,9 +16,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rtconnect.data.model.StatusIuran
@@ -210,6 +215,7 @@ fun RTButton(
         }
         Text(
             text = text,
+            color = if (isPrimary) RTWhite else RTNavy,
             style = MaterialTheme.typography.labelLarge.copy(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
@@ -258,5 +264,108 @@ fun RTStatusBadge(
                 letterSpacing = 0.5.sp
             )
         )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// SHIMMER LOADING EFFECT & SKELETON CARDS
+// -----------------------------------------------------------------------------
+@Composable
+fun shimmerBrush(targetValue: Float = 1000f): Brush {
+    val shimmerColors = listOf(
+        Color(0xFFE2E8F0),
+        Color(0xFFF1F5F9),
+        Color(0xFFE2E8F0)
+    )
+    val transition = rememberInfiniteTransition(label = "shimmerTransition")
+    val translateAnimation = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = targetValue,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerTranslate"
+    )
+    return Brush.linearGradient(
+        colors = shimmerColors,
+        start = Offset.Zero,
+        end = Offset(x = translateAnimation.value, y = translateAnimation.value)
+    )
+}
+
+@Composable
+fun SkeletonCard(
+    modifier: Modifier = Modifier,
+    height: Dp = 80.dp
+) {
+    val brush = shimmerBrush()
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(RoundedCornerShape(14.dp))
+            .background(brush)
+    )
+}
+
+@Composable
+fun WargaListSkeleton(
+    count: Int = 4,
+    modifier: Modifier = Modifier
+) {
+    val brush = shimmerBrush()
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        repeat(count) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, RTBorder, RoundedCornerShape(14.dp)),
+                colors = CardDefaults.cardColors(containerColor = RTWhite)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(brush)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.6f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(brush)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.4f)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(brush)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(width = 60.dp, height = 24.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(brush)
+                    )
+                }
+            }
+        }
     }
 }

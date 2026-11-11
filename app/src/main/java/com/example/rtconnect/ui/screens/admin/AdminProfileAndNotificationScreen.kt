@@ -40,7 +40,7 @@ fun AdminProfileScreen(
         topBar = {
             AdminTopAppBar(
                 title = "Profil Pengurus",
-                subtitle = "Ketua RT 10 / RW 04",
+                subtitle = "Ketua RT 06 / RW 04",
                 showBack = false
             )
         },
@@ -90,7 +90,7 @@ fun AdminProfileScreen(
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTNavy, fontSize = 19.sp)
                     )
                     Text(
-                        text = "Ketua RT 10 • Lingkungan Siaga",
+                        text = "Ketua RT 06 • Lingkungan Siaga",
                         style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 13.sp)
                     )
                 }
@@ -113,7 +113,7 @@ fun AdminProfileScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    ProfileItemRow("Jabatan", "Ketua RT 10 / RW 04")
+                    ProfileItemRow("Jabatan", "Ketua RT 06 / RW 04")
                     ProfileItemRow("Nama Lengkap", currentUser.fullName)
                     ProfileItemRow("Nomor WhatsApp", currentUser.phoneNumber)
                     ProfileItemRow("Email Resmi", currentUser.email)
@@ -169,55 +169,182 @@ fun AdminProfileScreen(
     }
 
     if (showChangePasswordDialog) {
-        ChangePasswordDialog(onDismiss = { showChangePasswordDialog = false })
+        ChangePasswordDialog(
+            userId = currentUser.id,
+            title = "Ganti Kata Sandi Pengurus",
+            onDismiss = { showChangePasswordDialog = false }
+        )
     }
 }
 
 @Composable
-fun ChangePasswordDialog(onDismiss: () -> Unit) {
+fun ChangePasswordDialog(
+    userId: String = "",
+    title: String = "Ganti Kata Sandi",
+    onDismiss: () -> Unit
+) {
     var oldPass by remember { mutableStateOf("") }
     var newPass by remember { mutableStateOf("") }
     var confirmPass by remember { mutableStateOf("") }
+    var oldPassVisible by remember { mutableStateOf(false) }
+    var newPassVisible by remember { mutableStateOf(false) }
+    var confirmPassVisible by remember { mutableStateOf(false) }
     var successMsg by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)), colors = CardDefaults.cardColors(containerColor = RTWhite)) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(text = "Ganti Kata Sandi", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTNavy))
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = RTWhite)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = RTNavy)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTNavy, fontSize = 18.sp))
+                }
                 Spacer(modifier = Modifier.height(14.dp))
 
                 if (successMsg) {
-                    Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(RTMint).padding(10.dp)) {
-                        Text(text = "Kata sandi berhasil diperbarui!", color = RTTeal, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
-
-                FormLabel("Kata Sandi Lama:")
-                OutlinedTextField(value = oldPass, onValueChange = { oldPass = it }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), singleLine = true)
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                FormLabel("Kata Sandi Baru:")
-                OutlinedTextField(value = newPass, onValueChange = { newPass = it }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), singleLine = true)
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                FormLabel("Konfirmasi Kata Sandi Baru:")
-                OutlinedTextField(value = confirmPass, onValueChange = { confirmPass = it }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), singleLine = true)
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) { Text("Tutup") }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Button(
-                        onClick = { successMsg = true },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RTNavy),
-                        enabled = newPass.isNotEmpty() && newPass == confirmPass
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(RTMint)
+                            .padding(12.dp)
                     ) {
-                        Text("Simpan Sandi", fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = RTTeal)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Kata sandi berhasil diperbarui!", color = RTNavy, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RTNavy, contentColor = RTWhite)
+                    ) {
+                        Text("Selesai", fontWeight = FontWeight.Bold, color = RTWhite)
+                    }
+                } else {
+                    if (errorMsg != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(RTDanger)
+                                .padding(10.dp)
+                        ) {
+                            Text(text = errorMsg ?: "", color = RTRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
+                    FormLabel("Kata Sandi Lama:")
+                    OutlinedTextField(
+                        value = oldPass,
+                        onValueChange = { oldPass = it; errorMsg = null },
+                        placeholder = { Text("Masukkan sandi saat ini", color = RTMuted, fontSize = 12.sp) },
+                        visualTransformation = if (oldPassVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { oldPassVisible = !oldPassVisible }) {
+                                Icon(
+                                    imageVector = if (oldPassVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = RTMuted
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    FormLabel("Kata Sandi Baru (Min. 6 Karakter):")
+                    OutlinedTextField(
+                        value = newPass,
+                        onValueChange = { newPass = it; errorMsg = null },
+                        placeholder = { Text("Masukkan sandi baru", color = RTMuted, fontSize = 12.sp) },
+                        visualTransformation = if (newPassVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { newPassVisible = !newPassVisible }) {
+                                Icon(
+                                    imageVector = if (newPassVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = RTMuted
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    FormLabel("Konfirmasi Kata Sandi Baru:")
+                    OutlinedTextField(
+                        value = confirmPass,
+                        onValueChange = { confirmPass = it; errorMsg = null },
+                        placeholder = { Text("Ulangi kata sandi baru", color = RTMuted, fontSize = 12.sp) },
+                        visualTransformation = if (confirmPassVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { confirmPassVisible = !confirmPassVisible }) {
+                                Icon(
+                                    imageVector = if (confirmPassVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = RTMuted
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) { Text("Batal") }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Button(
+                            onClick = {
+                                if (oldPass.isBlank()) {
+                                    errorMsg = "Kata sandi lama wajib diisi."
+                                    return@Button
+                                }
+                                if (newPass.length < 6) {
+                                    errorMsg = "Kata sandi baru minimal 6 karakter."
+                                    return@Button
+                                }
+                                if (newPass != confirmPass) {
+                                    errorMsg = "Konfirmasi kata sandi tidak cocok."
+                                    return@Button
+                                }
+                                val res = AppRepository.changePassword(userId, oldPass, newPass)
+                                if (res.isSuccess) {
+                                    successMsg = true
+                                    errorMsg = null
+                                } else {
+                                    errorMsg = res.exceptionOrNull()?.message ?: "Gagal mengganti kata sandi."
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = RTNavy, contentColor = RTWhite),
+                            enabled = newPass.isNotEmpty() && confirmPass.isNotEmpty()
+                        ) {
+                            Text("Simpan Sandi", fontWeight = FontWeight.Bold, color = RTWhite)
+                        }
                     }
                 }
             }
@@ -249,7 +376,7 @@ fun AdminNotificationScreen(
         if (adminNotifs.isEmpty()) {
             EmptyStateView(
                 title = "Tidak Ada Notifikasi",
-                message = "Belum ada laporan atau aktivitas baru dari warga RT 10.",
+                message = "Belum ada laporan atau aktivitas baru dari warga RT 06.",
                 icon = Icons.Outlined.NotificationsNone
             )
         } else {
