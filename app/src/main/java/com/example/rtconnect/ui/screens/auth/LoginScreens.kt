@@ -76,12 +76,14 @@ fun LoginScreen(
     }
 
     Scaffold(
-        containerColor = RTCanvas
+        containerColor = RTCanvas,
+        modifier = Modifier.imePadding()
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
         ) {
             // ==========================================
@@ -467,6 +469,7 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(28.dp))
             }
+            Spacer(modifier = Modifier.height(80.dp))
         }
     }
 

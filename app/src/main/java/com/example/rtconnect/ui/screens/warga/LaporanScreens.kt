@@ -43,6 +43,8 @@ import com.example.rtconnect.ui.components.RTTopAppBar
 import com.example.rtconnect.ui.theme.*
 import java.io.File
 
+import com.example.rtconnect.util.NotificationHelper
+
 @Composable
 fun LaporMasalahScreen(
     onBackClick: () -> Unit,
@@ -50,6 +52,7 @@ fun LaporMasalahScreen(
 ) {
     val context = LocalContext.current
     var selectedKategori by remember { mutableStateOf(KategoriLaporan.KEAMANAN) }
+    var customKategori by remember { mutableStateOf("") }
     var judul by remember { mutableStateOf("") }
     var lokasi by remember { mutableStateOf("") }
     var deskripsi by remember { mutableStateOf("") }
@@ -157,7 +160,8 @@ fun LaporMasalahScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 2x2 Grid Kategori agar teks tidak terpotong (Lingkungan, Kekeringan, Lainnya)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 KategoriChip(
                     text = "Keamanan",
                     icon = Icons.Outlined.Security,
@@ -172,12 +176,48 @@ fun LaporMasalahScreen(
                     onClick = { selectedKategori = KategoriLaporan.LINGKUNGAN },
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 KategoriChip(
                     text = "Kekeringan",
                     icon = Icons.Outlined.WaterDrop,
                     isSelected = selectedKategori == KategoriLaporan.KEKERINGAN,
                     onClick = { selectedKategori = KategoriLaporan.KEKERINGAN },
                     modifier = Modifier.weight(1f)
+                )
+                KategoriChip(
+                    text = "Lainnya",
+                    icon = Icons.Outlined.EditNote,
+                    isSelected = selectedKategori == KategoriLaporan.LAINNYA,
+                    onClick = { selectedKategori = KategoriLaporan.LAINNYA },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Input teks khusus jika user memilih opsi "Lainnya"
+            if (selectedKategori == KategoriLaporan.LAINNYA) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Tuliskan Kategori Sendiri",
+                    style = MaterialTheme.typography.labelMedium.copy(color = RTText, fontWeight = FontWeight.SemiBold)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = customKategori,
+                    onValueChange = { customKategori = it },
+                    placeholder = { Text("Contoh: Fasilitas Pos Ronda, Parkir Liar, dsb", color = RTMuted, fontSize = 13.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = RTWhite,
+                        unfocusedContainerColor = RTWhite,
+                        focusedBorderColor = RTTeal,
+                        unfocusedBorderColor = RTBorder
+                    ),
+                    singleLine = true
                 )
             }
 
@@ -306,9 +346,15 @@ fun LaporMasalahScreen(
             RTButton(
                 text = "Kirim Laporan ke Pengurus RT",
                 onClick = {
+                    val finalJudul = if (selectedKategori == KategoriLaporan.LAINNYA && customKategori.isNotBlank()) {
+                        "[$customKategori] ${judul.ifBlank { "Laporan Warga" }}"
+                    } else {
+                        judul.ifBlank { "Laporan Lingkungan" }
+                    }
                     val newLaporan = Laporan(
-                        judul = if (judul.isBlank()) "Laporan Lingkungan" else judul,
+                        judul = finalJudul,
                         kategori = selectedKategori,
+                        kategoriKustom = if (selectedKategori == KategoriLaporan.LAINNYA) customKategori else null,
                         deskripsi = deskripsi,
                         lokasi = if (lokasi.isBlank()) "Area RT 06" else lokasi,
                         tanggal = "Hari ini",
@@ -316,9 +362,15 @@ fun LaporMasalahScreen(
                         pelaporPhone = AppRepository.currentUser.value.phoneNumber
                     )
                     AppRepository.addLaporan(newLaporan)
+                    NotificationHelper.showAnnouncementNotification(
+                        context = context,
+                        title = "Laporan Baru Dikirim",
+                        message = "Laporan '${newLaporan.judul}' berhasil dikirim ke pengurus RT 06 dan tercatat di sistem.",
+                        isPenting = false
+                    )
                     onSubmitSuccess()
                 },
-                enabled = judul.isNotBlank() || deskripsi.isNotBlank()
+                enabled = judul.isNotBlank() || deskripsi.isNotBlank() || (selectedKategori == KategoriLaporan.LAINNYA && customKategori.isNotBlank())
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -435,6 +487,11 @@ fun StatusLaporanScreen(
 ) {
     val laporanList by AppRepository.laporanList.collectAsState()
 
+    // Ambil data terbaru dari Supabase setiap kali membuka halaman status laporan
+    LaunchedEffect(Unit) {
+        AppRepository.refreshAllData()
+    }
+
     Scaffold(
         topBar = {
             RTTopAppBar(
@@ -468,15 +525,35 @@ fun StatusLaporanScreen(
                             fontSize = 16.sp
                         )
                     )
-                    Text(
-                        text = "+ Buat Laporan",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            color = RTTeal,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        ),
+
+                    // Tombol Kotak "+ Buat Laporan"
+                    Surface(
+                        color = RTTeal,
+                        shape = RoundedCornerShape(10.dp),
+                        shadowElevation = 2.dp,
                         modifier = Modifier.clickable { onLaporBaruClick() }
-                    )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Add,
+                                contentDescription = null,
+                                tint = RTWhite,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Buat Laporan",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    color = RTWhite,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            )
+                        }
+                    }
                 }
             }
 

@@ -29,6 +29,7 @@ import com.example.rtconnect.ui.components.AdminTopAppBar
 import com.example.rtconnect.ui.components.ConfirmationDialog
 import com.example.rtconnect.ui.components.EmptyStateView
 import com.example.rtconnect.ui.components.RTStatusBadge
+import com.example.rtconnect.util.NotificationHelper
 import com.example.rtconnect.util.WhatsAppHelper
 import com.example.rtconnect.ui.theme.*
 import java.util.UUID
@@ -40,6 +41,7 @@ import java.util.UUID
 fun KelolaLaporanAdminScreen(
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val laporanList by AppRepository.laporanList.collectAsState()
 
     var selectedStatus by remember { mutableStateOf<StatusLaporan?>(null) }
@@ -133,7 +135,14 @@ fun KelolaLaporanAdminScreen(
             laporan = handlingLaporan!!,
             onDismiss = { handlingLaporan = null },
             onSave = { newStatus, tanggapan ->
-                AppRepository.updateStatusLaporan(handlingLaporan!!.id, newStatus, tanggapan)
+                val currentLaporan = handlingLaporan!!
+                AppRepository.updateStatusLaporan(currentLaporan.id, newStatus, tanggapan)
+                NotificationHelper.showAnnouncementNotification(
+                    context = context,
+                    title = "Status Laporan: ${newStatus.name}",
+                    message = "Laporan '${currentLaporan.judul}' telah diperbarui pengurus RT (${newStatus.name}).",
+                    isPenting = false
+                )
                 handlingLaporan = null
             }
         )
@@ -314,6 +323,7 @@ fun TindakLanjutLaporanDialog(
 fun KelolaPengumumanAdminScreen(
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val pengumumanList by AppRepository.pengumumanList.collectAsState()
     var editingPengumuman by remember { mutableStateOf<Pengumuman?>(null) }
     var showFormDialog by remember { mutableStateOf(false) }
@@ -411,6 +421,12 @@ fun KelolaPengumumanAdminScreen(
             onSave = { p ->
                 if (editingPengumuman == null) {
                     AppRepository.addPengumuman(p)
+                    NotificationHelper.showAnnouncementNotification(
+                        context = context,
+                        title = p.judul,
+                        message = p.isi,
+                        isPenting = p.penting
+                    )
                 } else {
                     AppRepository.updatePengumuman(p)
                 }

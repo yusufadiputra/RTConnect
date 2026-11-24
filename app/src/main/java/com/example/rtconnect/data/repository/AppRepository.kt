@@ -756,6 +756,7 @@ object AppRepository {
                     KategoriLaporan.KEKERINGAN -> "KEKERINGAN"
                     KategoriLaporan.LINGKUNGAN -> "KEBERSIHAN"
                     KategoriLaporan.SAMPAH -> "SAMPAH"
+                    KategoriLaporan.LAINNYA -> laporan.kategoriKustom?.ifBlank { "LAINNYA" } ?: "LAINNYA"
                     else -> "LAINNYA"
                 }
                 val dto = ReportDto(

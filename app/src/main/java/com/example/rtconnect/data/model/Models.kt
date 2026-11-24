@@ -108,7 +108,8 @@ data class Laporan(
     val fotoRes: Int? = null,
     val fotoUrl: String? = null,
     val tanggapanRt: String? = null,
-    val tanggalTanggapan: String? = null
+    val tanggalTanggapan: String? = null,
+    val kategoriKustom: String? = null
 )
 
 enum class KategoriLaporan {

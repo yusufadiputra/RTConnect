@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,15 +33,260 @@ import com.example.rtconnect.ui.components.RTButton
 import com.example.rtconnect.ui.components.RTStatusBadge
 import com.example.rtconnect.ui.components.RTTopAppBar
 import com.example.rtconnect.ui.theme.*
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import coil.compose.AsyncImage
+import com.example.rtconnect.util.NotificationHelper
 import com.example.rtconnect.util.WhatsAppHelper
+import java.io.File
 
 @Composable
 fun BayarIuranScreen(
     onBackClick: () -> Unit,
     onPaymentSuccess: () -> Unit
 ) {
-    val tagihan = MockData.currentTagihan
+    val context = LocalContext.current
+    val tagihanList by AppRepository.tagihanList.collectAsState()
+    val tagihan = tagihanList.find { it.status == StatusIuran.BELUM_DIBAYAR } ?: MockData.currentTagihan
+
     var selectedMethod by remember { mutableStateOf("qris") }
+    var fotoBuktiUri by remember { mutableStateOf<Uri?>(null) }
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+    var showPhotoDialog by remember { mutableStateOf(false) }
+    var showQrisSandboxDialog by remember { mutableStateOf(false) }
+
+    // Launcher: galeri foto bukti
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        fotoBuktiUri = uri
+    }
+
+    // Launcher: kamera foto bukti
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            fotoBuktiUri = cameraImageUri
+        }
+    }
+
+    // Launcher: izin kamera
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            val photoFile = File.createTempFile("bukti_bayar_", ".jpg", context.externalCacheDir)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        }
+    }
+
+    fun openCamera() {
+        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            val photoFile = File.createTempFile("bukti_bayar_", ".jpg", context.externalCacheDir)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // Dialog Sumber Foto (Kamera / Galeri)
+    if (showPhotoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoDialog = false },
+            title = { Text("Unggah Bukti Bayar Tunai", fontWeight = FontWeight.Bold, color = RTNavy) },
+            text = { Text("Pilih sumber foto bukti kuitansi atau tanda terima pembayaran dari pengurus RT.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPhotoDialog = false
+                    openCamera()
+                }) {
+                    Icon(Icons.Outlined.PhotoCamera, contentDescription = null, tint = RTTeal)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Kamera", color = RTTeal, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showPhotoDialog = false
+                    galleryLauncher.launch("image/*")
+                }) {
+                    Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, tint = RTMuted)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Galeri", color = RTMuted)
+                }
+            },
+            containerColor = RTWhite,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    // Dialog Simulasi Sandbox QRIS
+    if (showQrisSandboxDialog) {
+        Dialog(onDismissRequest = { showQrisSandboxDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = RTWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Header QRIS
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = RTTeal.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "QRIS SANDBOX",
+                                color = RTTeal,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        IconButton(onClick = { showQrisSandboxDialog = false }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Tutup", tint = RTMuted)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "RT 06 CONNECT",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = RTNavy,
+                            fontSize = 18.sp
+                        )
+                    )
+                    Text(
+                        text = "NMID: ID1029384756 • Kas Iuran RT",
+                        style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 11.sp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // QR Mock Frame
+                    Box(
+                        modifier = Modifier
+                            .size(190.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(2.dp, RTTeal, RoundedCornerShape(16.dp))
+                            .background(Color(0xFFF9FAFB)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.QrCode2,
+                                contentDescription = "QR Code",
+                                tint = RTNavy,
+                                modifier = Modifier.size(130.dp)
+                            )
+                            Text(
+                                text = "Pindai Menggunakan E-Wallet / Mobile Banking",
+                                color = RTMuted,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Surface(
+                        color = RTCanvas,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Tagihan:", color = RTMuted, fontSize = 12.sp)
+                                Text(tagihan.judul, color = RTText, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Total:", color = RTMuted, fontSize = 12.sp)
+                                Text(
+                                    "Rp${String.format("%,d", tagihan.nominal).replace(',', '.')}",
+                                    color = RTTeal,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Tombol Simulasi Pembayaran Sukses Sandbox
+                    Button(
+                        onClick = {
+                            showQrisSandboxDialog = false
+                            AppRepository.updateStatusTagihan(tagihan.id, StatusIuran.LUNAS)
+                            NotificationHelper.showPaymentNotification(
+                                context,
+                                title = "Pembayaran QRIS Berhasil!",
+                                message = "Tagihan ${tagihan.judul} sebesar Rp${String.format("%,d", tagihan.nominal).replace(',', '.')} telah lunas via QRIS."
+                            )
+                            onPaymentSuccess()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = RTWhite)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Simulasikan Bayar Sukses (Sandbox)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = RTWhite
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    TextButton(onClick = { showQrisSandboxDialog = false }) {
+                        Text("Batal", color = RTMuted, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -111,15 +357,25 @@ fun BayarIuranScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = RTBorder)
 
+                    // Total Pembayaran - pastikan tidak pernah wrap ke baris baru
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "Total Pembayaran", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTText))
+                        Text(
+                            text = "Total Pembayaran",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTText)
+                        )
                         Text(
                             text = "Rp${String.format("%,d", tagihan.nominal).replace(',', '.')}",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = RTNavy)
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = RTNavy,
+                                fontSize = 20.sp
+                            ),
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -127,7 +383,7 @@ fun BayarIuranScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Metode Pembayaran
+            // Metode Pembayaran (HANYA 2 METODE: QRIS & Bayar Langsung ke Pengurus RT)
             Text(
                 text = "Pilih Metode Pembayaran",
                 style = MaterialTheme.typography.titleMedium.copy(
@@ -139,6 +395,7 @@ fun BayarIuranScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Opsi 1: QRIS
             PaymentMethodItem(
                 title = "QRIS (Semua E-Wallet & M-Banking)",
                 subtitle = "GoPay, OVO, Dana, BCA, Mandiri, BRI, dll.",
@@ -148,33 +405,141 @@ fun BayarIuranScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Opsi 2: Bayar Langsung ke Pengurus RT (Wajib foto bukti)
             PaymentMethodItem(
-                title = "Transfer Virtual Account",
-                subtitle = "BCA, Mandiri, BNI, BRI",
-                isSelected = selectedMethod == "va",
-                onClick = { selectedMethod = "va" }
+                title = "Bayar Langsung ke Pengurus RT",
+                subtitle = "Bayar tunai ke Ketua / Bendahara RT 06 (Wajib unggah bukti kuitansi)",
+                isSelected = selectedMethod == "tunai_rt",
+                onClick = { selectedMethod = "tunai_rt" }
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            // Bagian Upload Bukti Foto Khusus Bayar Langsung ke Pengurus RT
+            if (selectedMethod == "tunai_rt") {
+                Spacer(modifier = Modifier.height(16.dp))
 
-            PaymentMethodItem(
-                title = "Tunai ke Bendahara RT",
-                subtitle = "Bayar langsung ke Pos RT 06",
-                isSelected = selectedMethod == "cash",
-                onClick = { selectedMethod = "cash" }
-            )
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, if (fotoBuktiUri != null) RTTeal else Color(0xFFF59E0B), RoundedCornerShape(14.dp)),
+                    colors = CardDefaults.cardColors(containerColor = if (fotoBuktiUri != null) RTMint.copy(alpha = 0.3f) else Color(0xFFFFFBEB))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (fotoBuktiUri != null) Icons.Outlined.CheckCircle else Icons.Outlined.Info,
+                                contentDescription = null,
+                                tint = if (fotoBuktiUri != null) RTTeal else Color(0xFFD97706),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Bukti Pembayaran Tunai (Wajib)",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (fotoBuktiUri != null) RTNavy else Color(0xFF92400E)
+                                )
+                            )
+                        }
 
-            Spacer(modifier = Modifier.height(32.dp))
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Harap lampirkan foto kuitansi atau dokumentasi serah terima pembayaran ke Ketua / Bendahara RT 06.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 12.sp)
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        if (fotoBuktiUri != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(150.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.dp, RTTeal, RoundedCornerShape(10.dp))
+                                    .background(RTWhite)
+                            ) {
+                                AsyncImage(
+                                    model = fotoBuktiUri,
+                                    contentDescription = "Foto Bukti Pembayaran",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+                                IconButton(
+                                    onClick = { fotoBuktiUri = null },
+                                    modifier = Modifier.align(Alignment.TopEnd)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Close,
+                                        contentDescription = "Hapus foto",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        } else {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showPhotoDialog = true },
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RTTeal),
+                                color = RTWhite
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.AddAPhoto,
+                                        contentDescription = null,
+                                        tint = RTTeal,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Ambil Foto / Pilih dari Galeri",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            color = RTTeal,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // Tombol Aksi Pembayaran
+            val isBayarEnabled = selectedMethod == "qris" || (selectedMethod == "tunai_rt" && fotoBuktiUri != null)
 
             RTButton(
-                text = "Konfirmasi & Bayar Sekarang",
+                text = when {
+                    selectedMethod == "qris" -> "Konfirmasi & Buka QRIS (Sandbox)"
+                    fotoBuktiUri != null -> "Kirim Bukti Pembayaran ke Pengurus RT"
+                    else -> "Wajib Unggah Bukti Foto Terlebih Dahulu"
+                },
+                enabled = isBayarEnabled,
                 onClick = {
-                    AppRepository.updateStatusTagihan(tagihan.id, StatusIuran.LUNAS)
-                    onPaymentSuccess()
+                    if (selectedMethod == "qris") {
+                        showQrisSandboxDialog = true
+                    } else {
+                        // Bayar langsung ke RT dengan foto bukti -> status LUNAS terverifikasi
+                        AppRepository.updateStatusTagihan(tagihan.id, StatusIuran.LUNAS)
+                        NotificationHelper.showPaymentNotification(
+                            context,
+                            title = "Bukti Pembayaran Diterima!",
+                            message = "Bukti pembayaran tunai untuk ${tagihan.judul} telah dikirim ke Pengurus RT dan status tagihan diperbarui."
+                        )
+                        onPaymentSuccess()
+                    }
                 }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
         }
     }
 }

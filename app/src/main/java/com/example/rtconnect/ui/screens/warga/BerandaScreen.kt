@@ -27,7 +27,19 @@ import com.example.rtconnect.data.repository.MockData
 import com.example.rtconnect.ui.components.RTButton
 import com.example.rtconnect.ui.components.RTStatusBadge
 import com.example.rtconnect.ui.components.RTTopAppBar
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import com.example.rtconnect.ui.theme.*
+import com.example.rtconnect.util.NotificationHelper
 
 @Composable
 fun BerandaScreen(
@@ -43,7 +55,20 @@ fun BerandaScreen(
     val tagihanList by AppRepository.tagihanList.collectAsState()
     val tagihan = tagihanList.find { it.status == StatusIuran.BELUM_DIBAYAR } ?: tagihanList.firstOrNull() ?: MockData.currentTagihan
     val pengumumanList by AppRepository.pengumumanList.collectAsState()
-    val pengumumanTerbaru = pengumumanList.firstOrNull() ?: MockData.pengumumanList.firstOrNull()
+    val context = LocalContext.current
+
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        AppRepository.refreshAllData()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -214,64 +239,162 @@ fun BerandaScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            if (pengumumanTerbaru != null) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .border(1.dp, RTBorder, RoundedCornerShape(14.dp))
-                        .clickable { onNavigateToDetailPengumuman(pengumumanTerbaru.id) },
-                    colors = CardDefaults.cardColors(containerColor = RTWhite)
+            // Carousel Pengumuman yang Lebih Besar dan Bisa Digeser-geser (Swipeable)
+            if (pengumumanList.isNotEmpty()) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
+                    items(pengumumanList) { item ->
+                        Card(
                             modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(RTMint),
-                            contentAlignment = Alignment.Center
+                                .width(310.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .border(
+                                    width = 1.dp,
+                                    color = if (item.penting) Color(0xFFFCA5A5) else RTBorder,
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .clickable { onNavigateToDetailPengumuman(item.id) },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (item.penting) Color(0xFFFFF8F8) else RTWhite
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Event,
-                                contentDescription = null,
-                                tint = RTTeal
-                            )
-                        }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) {
+                                // Baris Atas: Badge Status & Tanggal
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (item.penting) {
+                                        Surface(
+                                            color = RTRed.copy(alpha = 0.12f),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "PENTING",
+                                                color = RTRed,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    } else {
+                                        Surface(
+                                            color = RTMint,
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "INFO WARGA",
+                                                color = RTTeal,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
 
-                        Spacer(modifier = Modifier.width(14.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.CalendarToday,
+                                            contentDescription = null,
+                                            tint = RTMuted,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = item.tanggal,
+                                            color = RTMuted,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = pengumumanTerbaru.judul,
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = RTText,
-                                    fontSize = 15.sp
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Judul Pengumuman
+                                Text(
+                                    text = item.judul,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = RTNavy,
+                                        fontSize = 16.sp,
+                                        lineHeight = 21.sp
+                                    ),
+                                    maxLines = 2
                                 )
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "${pengumumanTerbaru.tanggal} • ${pengumumanTerbaru.waktu} • ${pengumumanTerbaru.lokasi}",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = RTMuted,
-                                    fontSize = 12.sp
-                                )
-                            )
-                        }
 
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
-                            contentDescription = null,
-                            tint = RTMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // Isi Pengumuman Langsung Tampil di Dashboard
+                                Text(
+                                    text = item.isi,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = RTMuted,
+                                        fontSize = 12.sp,
+                                        lineHeight = 17.sp
+                                    ),
+                                    maxLines = 2
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                HorizontalDivider(color = RTBorder.copy(alpha = 0.6f))
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Lokasi & Aksi Baca Selengkapnya
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Place,
+                                            contentDescription = null,
+                                            tint = RTTeal,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = item.lokasi,
+                                            color = RTText,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1
+                                        )
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Baca Detail",
+                                            color = RTTeal,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                                            contentDescription = null,
+                                            tint = RTTeal,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
