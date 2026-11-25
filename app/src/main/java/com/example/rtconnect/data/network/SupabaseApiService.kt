@@ -116,7 +116,62 @@ interface SupabaseApiService {
     ): Response<Unit>
 
     // =========================================================================
-    // 6. AUTH & USER REGISTRATION (SUPABASE AUTH)
+    // 6. PAYMENTS (PEMBAYARAN IURAN) - CRUD
+    // =========================================================================
+    @GET("rest/v1/payments?select=*&order=created_at.desc")
+    suspend fun getPayments(): List<PaymentDto>
+
+    @POST("rest/v1/payments")
+    suspend fun createPayment(
+        @Body payment: PaymentDto,
+        @Header("Prefer") prefer: String = "return=representation"
+    ): List<PaymentDto>
+
+    // =========================================================================
+    // 7. SOCIAL ASSISTANCE (PROGRAM & PENERIMA BANSOS) - CRUD
+    // =========================================================================
+    @GET("rest/v1/social_assistance_programs?select=*&order=created_at.desc")
+    suspend fun getSocialAssistancePrograms(): List<SocialAssistanceProgramDto>
+
+    @POST("rest/v1/social_assistance_programs")
+    suspend fun createSocialAssistanceProgram(
+        @Body program: SocialAssistanceProgramDto,
+        @Header("Prefer") prefer: String = "return=representation"
+    ): List<SocialAssistanceProgramDto>
+
+    @PATCH("rest/v1/social_assistance_programs")
+    suspend fun updateSocialAssistanceProgram(
+        @Query("id") idFilter: String,
+        @Body updates: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<Unit>
+
+    @DELETE("rest/v1/social_assistance_programs")
+    suspend fun deleteSocialAssistanceProgram(
+        @Query("id") idFilter: String
+    ): Response<Unit>
+
+    @GET("rest/v1/social_assistance_recipients?select=*&order=created_at.desc")
+    suspend fun getSocialAssistanceRecipients(): List<SocialAssistanceRecipientDto>
+
+    @POST("rest/v1/social_assistance_recipients")
+    suspend fun createSocialAssistanceRecipient(
+        @Body recipient: SocialAssistanceRecipientDto,
+        @Header("Prefer") prefer: String = "return=representation"
+    ): List<SocialAssistanceRecipientDto>
+
+    @PATCH("rest/v1/social_assistance_recipients")
+    suspend fun updateSocialAssistanceRecipient(
+        @Query("id") idFilter: String,
+        @Body updates: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<Unit>
+
+    @DELETE("rest/v1/social_assistance_recipients")
+    suspend fun deleteSocialAssistanceRecipient(
+        @Query("id") idFilter: String
+    ): Response<Unit>
+
+    // =========================================================================
+    // 8. AUTH & USER REGISTRATION (SUPABASE AUTH)
     // =========================================================================
     @POST("auth/v1/signup")
     suspend fun signUp(

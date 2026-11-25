@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,7 @@ import com.example.rtconnect.ui.components.MonthlyPaymentBarChart
 import com.example.rtconnect.ui.components.StatCard
 import com.example.rtconnect.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
     onNavigateToWarga: () -> Unit,
@@ -43,6 +45,7 @@ fun AdminDashboardScreen(
     val openDrawer = LocalAdminMenuAction.current
 
     val unreadNotifs = notifications.count { !it.isRead && it.forAdmin }
+    val isLoading by AppRepository.isLoading.collectAsState()
 
     Scaffold(
         topBar = {
@@ -56,14 +59,20 @@ fun AdminDashboardScreen(
         },
         containerColor = RTCanvas
     ) { paddingValues ->
-        Column(
+        PullToRefreshBox(
+            isRefreshing = isLoading,
+            onRefresh = { AppRepository.refreshAllData() },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
 
             // Greeting Section (Figma Dashboard Screen 1)
             Text(
@@ -394,6 +403,7 @@ fun AdminDashboardScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+            }
         }
     }
 }

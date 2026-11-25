@@ -41,6 +41,7 @@ object AppRepository {
                 fetchWasteBillsFromSupabase()
                 fetchReportsFromSupabase()
                 fetchAnnouncementsFromSupabase()
+                fetchBansosFromSupabase()
             } finally {
                 _isLoading.value = false
             }
@@ -357,12 +358,22 @@ object AppRepository {
         )
     )
     val wargaList: StateFlow<List<Warga>> = _wargaList.asStateFlow()
+    private val _customTarifMap = mutableMapOf<String, Pair<Long, String?>>()
 
     private suspend fun fetchWargaFromSupabase() {
         try {
             val remote = SupabaseClient.apiService.getFamilies()
             if (remote.isNotEmpty()) {
                 val mapped = remote.map { dto ->
+                    val custom = _customTarifMap[dto.id]
+                        ?: _customTarifMap[dto.headOfFamilyName.lowercase().trim()]
+                        ?: if (dto.customTarifNominal != null) Pair(dto.customTarifNominal, dto.catatanTarif) else null
+
+                    if (custom != null) {
+                        dto.id?.let { _customTarifMap[it] = custom }
+                        _customTarifMap[dto.headOfFamilyName.lowercase().trim()] = custom
+                    }
+
                     Warga(
                         id = dto.id ?: UUID.randomUUID().toString(),
                         noKk = dto.kkNumber,
@@ -382,7 +393,9 @@ object AppRepository {
                             StatusEkonomi.REGULER
                         },
                         statusAkun = if (dto.isActive) StatusAkun.AKTIF else StatusAkun.NONAKTIF,
-                        statusIuran = StatusIuran.LUNAS
+                        statusIuran = StatusIuran.LUNAS,
+                        customTarifNominal = custom?.first,
+                        catatanTarif = custom?.second
                     )
                 }
                 _wargaList.value = mapped
@@ -576,6 +589,9 @@ object AppRepository {
                 val mapped = remote.map { dto ->
                     val warga = _wargaList.value.find { it.id == dto.familyId }
                     val kategori = _kategoriList.value.find { it.id == dto.categoryId }
+                    val custom = _customTarifMap[dto.familyId]
+                        ?: _customTarifMap[warga?.namaKepalaKeluarga?.lowercase()?.trim()]
+
                     TagihanIuran(
                         id = dto.id ?: UUID.randomUUID().toString(),
                         wargaId = dto.familyId ?: "",
@@ -586,7 +602,7 @@ object AppRepository {
                         periodeBulan = dto.periodMonth,
                         periodeTahun = dto.periodYear,
                         periodeNama = "${monthName(dto.periodMonth)} ${dto.periodYear}",
-                        nominal = dto.amount.toLong(),
+                        nominal = custom?.first ?: dto.amount.toLong(),
                         batasWaktu = dto.dueDate,
                         status = when (dto.status) {
                             "LUNAS" -> StatusIuran.LUNAS
@@ -666,6 +682,7 @@ object AppRepository {
     }
 
     fun updateStatusTagihan(tagihanId: String, newStatus: StatusIuran) {
+        val target = _tagihanList.value.find { it.id == tagihanId }
         _tagihanList.value = _tagihanList.value.map {
             if (it.id == tagihanId) it.copy(status = newStatus) else it
         }
@@ -679,13 +696,61 @@ object AppRepository {
                     StatusIuran.GAGAL -> "GAGAL"
                     else -> "BELUM_DIBAYAR"
                 }
-                SupabaseClient.apiService.updateWasteBill(
-                    "eq.$tagihanId",
-                    mapOf("status" to statusString)
-                )
-                Log.d(TAG, "Berhasil update status tagihan di Supabase: $tagihanId -> $statusString")
+
+                val isUuid = tagihanId.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))
+                var realBillId = tagihanId
+
+                if (!isUuid || _tagihanList.value.none { it.id == tagihanId && isUuid }) {
+                    // Cari ID keluarga real di Supabase (dari _wargaList)
+                    val family = _wargaList.value.find { it.id == target?.wargaId || it.noHp == _currentUser.value.phoneNumber }
+                        ?: _wargaList.value.firstOrNull()
+                    val cat = _kategoriList.value.firstOrNull()
+
+                    if (family != null && cat != null) {
+                        val billDto = WasteBillDto(
+                            familyId = family.id,
+                            categoryId = cat.id,
+                            periodMonth = target?.periodeBulan ?: 11,
+                            periodYear = target?.periodeTahun ?: 2026,
+                            amount = target?.nominal?.toDouble() ?: 25000.0,
+                            dueDate = target?.batasWaktu ?: "2026-11-15",
+                            status = statusString
+                        )
+                        val insertedBill = SupabaseClient.apiService.createWasteBill(billDto)
+                        if (insertedBill.isNotEmpty()) {
+                            realBillId = insertedBill.first().id ?: UUID.randomUUID().toString()
+                            _tagihanList.value = _tagihanList.value.map {
+                                if (it.id == tagihanId) it.copy(id = realBillId) else it
+                            }
+                            Log.d(TAG, "Berhasil insert tagihan baru ke Supabase: $realBillId")
+                        }
+                    }
+                } else {
+                    SupabaseClient.apiService.updateWasteBill(
+                        "eq.$tagihanId",
+                        mapOf("status" to statusString)
+                    )
+                    Log.d(TAG, "Berhasil update status tagihan di Supabase: $tagihanId -> $statusString")
+                }
+
+                // Jika status LUNAS, catat juga ke tabel payments di Supabase
+                if (newStatus == StatusIuran.LUNAS && target != null) {
+                    val family = _wargaList.value.find { it.id == target.wargaId || it.noHp == _currentUser.value.phoneNumber }
+                        ?: _wargaList.value.firstOrNull()
+                    val paymentDto = PaymentDto(
+                        billId = if (realBillId.matches(Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))) realBillId else null,
+                        familyId = family?.id,
+                        merchantOrderId = "QRIS-SANDBOX-${System.currentTimeMillis()}",
+                        amount = target.nominal.toDouble(),
+                        paymentMethod = "QRIS (Sandbox Simulator)",
+                        status = "LUNAS",
+                        paymentDate = "2026-11-11"
+                    )
+                    SupabaseClient.apiService.createPayment(paymentDto)
+                    Log.d(TAG, "Berhasil simpan payment ke Supabase: ${paymentDto.merchantOrderId}")
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Gagal update status tagihan di Supabase: ${e.message}")
+                Log.e(TAG, "Gagal simpan tagihan/pembayaran ke Supabase: ${e.message}")
             }
         }
     }
@@ -918,7 +983,7 @@ object AppRepository {
     }
 
     // =========================================================================
-    // 7. Bantuan Sosial (CRUD)
+    // 7. Bantuan Sosial (CRUD via Supabase 'social_assistance_*')
     // =========================================================================
     private val _programBansosList = MutableStateFlow(
         listOf(
@@ -931,16 +996,80 @@ object AppRepository {
 
     private val _penerimaBansosList = MutableStateFlow(
         listOf(
-            PenerimaBansos("pb1", "b1", "Bansos Beras & Sembako", "Siti Rahmawati", "3273010101900003", "Blok C No. 08", "Disalurkan", "08 Nov 2026", "Sudah diserahkan langsung."),
-            PenerimaBansos("pb2", "b1", "Bansos Beras & Sembako", "Nurhasanah", "3273010101900006", "Blok C No. 02", "Disalurkan", "08 Nov 2026", "Diterima oleh kepala keluarga."),
-            PenerimaBansos("pb3", "b1", "Bansos Beras & Sembako", "Dedi Supardi", "3273010101900005", "Blok D No. 15", "Diverifikasi", catatan = "Menunggu kuota tahap 2.")
+            PenerimaBansos("pb1", "b1", "Bansos Beras & Sembako Bulanan", "Siti Rahmawati", "3273010101900003", "Blok C No. 08", "Disalurkan", "08 Nov 2026", "Sudah diserahkan langsung."),
+            PenerimaBansos("pb2", "b1", "Bansos Beras & Sembako Bulanan", "Nurhasanah", "3273010101900006", "Blok C No. 02", "Disalurkan", "08 Nov 2026", "Diterima oleh kepala keluarga."),
+            PenerimaBansos("pb3", "b1", "Bansos Beras & Sembako Bulanan", "Dedi Supardi", "3273010101900005", "Blok D No. 15", "Diverifikasi", catatan = "Menunggu kuota tahap 2.")
         )
     )
     val penerimaBansosList: StateFlow<List<PenerimaBansos>> = _penerimaBansosList.asStateFlow()
 
+    private suspend fun fetchBansosFromSupabase() {
+        try {
+            val progRemote = SupabaseClient.apiService.getSocialAssistancePrograms()
+            if (progRemote.isNotEmpty()) {
+                _programBansosList.value = progRemote.map { dto ->
+                    ProgramBansos(
+                        id = dto.id ?: UUID.randomUUID().toString(),
+                        namaProgram = dto.name,
+                        periode = dto.period,
+                        kriteria = dto.criteria,
+                        kuota = dto.quota,
+                        status = if (dto.isActive) "Aktif" else "Selesai",
+                        isActive = dto.isActive
+                    )
+                }
+                Log.d(TAG, "Berhasil memuat ${progRemote.size} program bansos dari Supabase")
+            }
+
+            val recipRemote = SupabaseClient.apiService.getSocialAssistanceRecipients()
+            if (recipRemote.isNotEmpty()) {
+                _penerimaBansosList.value = recipRemote.map { dto ->
+                    val warga = _wargaList.value.find { it.id == dto.familyId }
+                    val prog = _programBansosList.value.find { it.id == dto.programId }
+                    PenerimaBansos(
+                        id = dto.id ?: UUID.randomUUID().toString(),
+                        programId = dto.programId,
+                        programNama = prog?.namaProgram ?: "Bansos RT 06",
+                        namaPenerima = warga?.namaKepalaKeluarga ?: "Warga RT",
+                        noKk = warga?.noKk ?: "-",
+                        blokRumah = warga?.blokRumah ?: "-",
+                        statusPenyaluran = dto.disbursementStatus,
+                        tanggalPenyaluran = dto.disbursedAt?.take(10),
+                        catatan = dto.notes ?: ""
+                    )
+                }
+                Log.d(TAG, "Berhasil memuat ${recipRemote.size} penerima bansos dari Supabase")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetchBansosFromSupabase: ${e.message}")
+        }
+    }
+
     fun addProgramBansos(program: ProgramBansos) {
         _programBansosList.value = listOf(program) + _programBansosList.value
         addActivityLog("Buat Program Bansos", "Membuat program: ${program.namaProgram}")
+
+        repositoryScope.launch {
+            try {
+                val dto = SocialAssistanceProgramDto(
+                    name = program.namaProgram,
+                    period = program.periode,
+                    criteria = program.kriteria,
+                    quota = program.kuota,
+                    isActive = program.status == "Aktif" || program.isActive
+                )
+                val response = SupabaseClient.apiService.createSocialAssistanceProgram(dto)
+                if (response.isNotEmpty()) {
+                    val realId = response.first().id ?: program.id
+                    _programBansosList.value = _programBansosList.value.map {
+                        if (it.id == program.id) it.copy(id = realId) else it
+                    }
+                    Log.d(TAG, "Berhasil simpan program bansos ke Supabase: $realId")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Gagal simpan program bansos ke Supabase: ${e.message}")
+            }
+        }
     }
 
     fun updateProgramBansos(program: ProgramBansos) {
@@ -948,21 +1077,69 @@ object AppRepository {
             if (it.id == program.id) program else it
         }
         addActivityLog("Update Program Bansos", "Memperbarui program: ${program.namaProgram}")
+
+        repositoryScope.launch {
+            try {
+                val updates = mapOf(
+                    "name" to program.namaProgram,
+                    "period" to program.periode,
+                    "criteria" to program.kriteria,
+                    "quota" to program.kuota,
+                    "is_active" to (program.status == "Aktif" || program.isActive)
+                )
+                SupabaseClient.apiService.updateSocialAssistanceProgram("eq.${program.id}", updates)
+                Log.d(TAG, "Berhasil update program bansos di Supabase: ${program.id}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Gagal update program bansos di Supabase: ${e.message}")
+            }
+        }
     }
 
     fun deleteProgramBansos(id: String) {
         val target = _programBansosList.value.find { it.id == id }
         _programBansosList.value = _programBansosList.value.filterNot { it.id == id }
-        // Hapus juga penerima yang terkait
         _penerimaBansosList.value = _penerimaBansosList.value.filterNot { it.programId == id }
         if (target != null) {
             addActivityLog("Hapus Program Bansos", "Menghapus program: ${target.namaProgram}")
+        }
+
+        repositoryScope.launch {
+            try {
+                SupabaseClient.apiService.deleteSocialAssistanceProgram("eq.$id")
+                Log.d(TAG, "Berhasil hapus program bansos dari Supabase: $id")
+            } catch (e: Exception) {
+                Log.e(TAG, "Gagal hapus program bansos dari Supabase: ${e.message}")
+            }
         }
     }
 
     fun addPenerimaBansos(penerima: PenerimaBansos) {
         _penerimaBansosList.value = listOf(penerima) + _penerimaBansosList.value
         addActivityLog("Tambah Penerima Bansos", "Mendaftarkan ${penerima.namaPenerima} ke program ${penerima.programNama}")
+
+        repositoryScope.launch {
+            try {
+                // Cari family ID jika ada di _wargaList
+                val family = _wargaList.value.find { it.noKk == penerima.noKk || it.namaKepalaKeluarga == penerima.namaPenerima }
+                val familyId = family?.id ?: UUID.randomUUID().toString()
+                val dto = SocialAssistanceRecipientDto(
+                    programId = penerima.programId,
+                    familyId = familyId,
+                    disbursementStatus = penerima.statusPenyaluran,
+                    notes = penerima.catatan
+                )
+                val response = SupabaseClient.apiService.createSocialAssistanceRecipient(dto)
+                if (response.isNotEmpty()) {
+                    val realId = response.first().id ?: penerima.id
+                    _penerimaBansosList.value = _penerimaBansosList.value.map {
+                        if (it.id == penerima.id) it.copy(id = realId) else it
+                    }
+                    Log.d(TAG, "Berhasil simpan penerima bansos ke Supabase: $realId")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Gagal simpan penerima bansos ke Supabase: ${e.message}")
+            }
+        }
     }
 
     fun updateStatusPenyaluran(penerimaId: String, newStatus: String) {
@@ -970,6 +1147,21 @@ object AppRepository {
             if (it.id == penerimaId) it.copy(statusPenyaluran = newStatus, tanggalPenyaluran = "11 Nov 2026") else it
         }
         addActivityLog("Update Status Bansos", "Mengubah status penyaluran menjadi $newStatus")
+
+        repositoryScope.launch {
+            try {
+                SupabaseClient.apiService.updateSocialAssistanceRecipient(
+                    "eq.$penerimaId",
+                    mapOf(
+                        "disbursement_status" to newStatus,
+                        "disbursed_at" to "2026-11-11T10:00:00Z"
+                    )
+                )
+                Log.d(TAG, "Berhasil update status bansos di Supabase: $penerimaId -> $newStatus")
+            } catch (e: Exception) {
+                Log.e(TAG, "Gagal update status bansos di Supabase: ${e.message}")
+            }
+        }
     }
 
     fun deletePenerimaBansos(id: String) {
@@ -977,6 +1169,82 @@ object AppRepository {
         _penerimaBansosList.value = _penerimaBansosList.value.filterNot { it.id == id }
         if (target != null) {
             addActivityLog("Hapus Penerima Bansos", "Menghapus ${target.namaPenerima} dari daftar penerima")
+        }
+
+        repositoryScope.launch {
+            try {
+                SupabaseClient.apiService.deleteSocialAssistanceRecipient("eq.$id")
+                Log.d(TAG, "Berhasil hapus penerima bansos dari Supabase: $id")
+            } catch (e: Exception) {
+                Log.e(TAG, "Gagal hapus penerima bansos dari Supabase: ${e.message}")
+            }
+        }
+    }
+
+    // =========================================================================
+    // 7.1 Atur Tarif Khusus per Warga Tertentu (Kategori Khusus RT)
+    // =========================================================================
+    fun setCustomTarifWarga(wargaId: String, customNominal: Long?, catatan: String?, tanggalJatuhTempo: Int = 15) {
+        val targetWarga = _wargaList.value.find { it.id == wargaId }
+        val targetNama = targetWarga?.namaKepalaKeluarga
+        val targetNominal = customNominal ?: 25000L
+        val jatuhTempoStr = "$tanggalJatuhTempo Nov 2026"
+
+        if (customNominal != null) {
+            _customTarifMap[wargaId] = Pair(customNominal, catatan)
+            if (!targetNama.isNullOrBlank()) {
+                _customTarifMap[targetNama.lowercase().trim()] = Pair(customNominal, catatan)
+            }
+        } else {
+            _customTarifMap.remove(wargaId)
+            if (!targetNama.isNullOrBlank()) {
+                _customTarifMap.remove(targetNama.lowercase().trim())
+            }
+        }
+
+        _wargaList.value = _wargaList.value.map {
+            if (it.id == wargaId || (targetNama != null && it.namaKepalaKeluarga.equals(targetNama, ignoreCase = true))) {
+                it.copy(
+                    customTarifNominal = customNominal,
+                    catatanTarif = catatan
+                )
+            } else it
+        }
+
+        _tagihanList.value = _tagihanList.value.map {
+            if (it.wargaId == wargaId || (targetNama != null && it.namaWarga.equals(targetNama, ignoreCase = true))) {
+                it.copy(
+                    nominal = targetNominal,
+                    batasWaktu = jatuhTempoStr
+                )
+            } else it
+        }
+
+        addActivityLog("Atur Tarif Khusus", "Menetapkan tarif khusus Rp${String.format("%,d", targetNominal)} (Jatuh tempo tgl $tanggalJatuhTempo) untuk warga ${targetNama ?: wargaId}")
+
+        repositoryScope.launch {
+            try {
+                val updates = mutableMapOf<String, Any?>()
+                if (customNominal != null) {
+                    updates["custom_tarif_nominal"] = customNominal
+                    updates["catatan_tarif"] = catatan ?: ""
+                } else {
+                    updates["custom_tarif_nominal"] = null
+                    updates["catatan_tarif"] = null
+                }
+                SupabaseClient.apiService.updateFamily("eq.$wargaId", updates)
+                Log.d(TAG, "Berhasil simpan tarif khusus warga ke Supabase: $wargaId")
+
+                // Update juga semua tagihan warga ini di Supabase agar nominalnya sesuai tarif khusus
+                val bills = _tagihanList.value.filter { it.wargaId == wargaId || (targetNama != null && it.namaWarga.equals(targetNama, ignoreCase = true)) }
+                for (b in bills) {
+                    if (b.id.matches(Regex("^[0-9a-fA-F-]{36}$"))) {
+                        SupabaseClient.apiService.updateWasteBill("eq.${b.id}", mapOf("amount" to targetNominal.toDouble()))
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Gagal simpan tarif khusus ke Supabase: ${e.message}")
+            }
         }
     }
 

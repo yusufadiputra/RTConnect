@@ -30,6 +30,12 @@ data class FamilyDto(
     @SerializedName("is_active")
     val isActive: Boolean = true,
 
+    @SerializedName("custom_tarif_nominal")
+    val customTarifNominal: Long? = null,
+
+    @SerializedName("catatan_tarif")
+    val catatanTarif: String? = null,
+
     @SerializedName("created_at")
     val createdAt: String? = null,
 
@@ -142,6 +148,75 @@ data class WasteBillDto(
 
     @SerializedName("status")
     val status: String = "BELUM_DIBAYAR"
+)
+
+data class PaymentDto(
+    @SerializedName("id")
+    val id: String? = null,
+
+    @SerializedName("bill_id")
+    val billId: String? = null,
+
+    @SerializedName("family_id")
+    val familyId: String? = null,
+
+    @SerializedName("merchant_order_id")
+    val merchantOrderId: String,
+
+    @SerializedName("amount")
+    val amount: Double,
+
+    @SerializedName("payment_method")
+    val paymentMethod: String,
+
+    @SerializedName("status")
+    val status: String = "LUNAS",
+
+    @SerializedName("payment_date")
+    val paymentDate: String? = null,
+
+    @SerializedName("receipt_image_url")
+    val receiptImageUrl: String? = null
+)
+
+data class SocialAssistanceProgramDto(
+    @SerializedName("id")
+    val id: String? = null,
+
+    @SerializedName("name")
+    val name: String,
+
+    @SerializedName("period")
+    val period: String,
+
+    @SerializedName("criteria")
+    val criteria: String,
+
+    @SerializedName("quota")
+    val quota: Int = 0,
+
+    @SerializedName("is_active")
+    val isActive: Boolean = true
+)
+
+data class SocialAssistanceRecipientDto(
+    @SerializedName("id")
+    val id: String? = null,
+
+    @SerializedName("program_id")
+    val programId: String,
+
+    @SerializedName("family_id")
+    val familyId: String,
+
+    @SerializedName("disbursement_status")
+    val disbursementStatus: String = "TERDAFTAR",
+
+    @SerializedName("disbursed_at")
+    val disbursedAt: String? = null,
+
+    @SerializedName("notes")
+    val notes: String? = null
 )
 
 data class SignUpRequest(

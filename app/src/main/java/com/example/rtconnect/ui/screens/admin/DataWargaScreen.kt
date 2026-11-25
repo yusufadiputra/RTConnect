@@ -51,7 +51,6 @@ fun DataWargaScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilterEkonomi by remember { mutableStateOf<StatusEkonomi?>(null) }
-    var filterHanyaBelumLunas by remember { mutableStateOf(false) }
 
     // Dialog state
     var showFormDialog by remember { mutableStateOf(false) }
@@ -67,9 +66,8 @@ fun DataWargaScreen(
                 warga.blokRumah.contains(searchQuery, ignoreCase = true)
 
         val matchesEkonomi = selectedFilterEkonomi == null || warga.statusEkonomi == selectedFilterEkonomi
-        val matchesIuran = !filterHanyaBelumLunas || warga.statusIuran == StatusIuran.BELUM_DIBAYAR
 
-        matchesQuery && matchesEkonomi && matchesIuran
+        matchesQuery && matchesEkonomi
     }
 
     Scaffold(
@@ -180,10 +178,9 @@ fun DataWargaScreen(
             ) {
                 item {
                     FilterChip(
-                        selected = selectedFilterEkonomi == null && !filterHanyaBelumLunas,
+                        selected = selectedFilterEkonomi == null,
                         onClick = {
                             selectedFilterEkonomi = null
-                            filterHanyaBelumLunas = false
                         },
                         label = { Text("Semua (${wargaList.size})") }
                     )
@@ -204,22 +201,6 @@ fun DataWargaScreen(
                             selectedFilterEkonomi = if (selectedFilterEkonomi == StatusEkonomi.PENGUSAHA) null else StatusEkonomi.PENGUSAHA
                         },
                         label = { Text("Pengusaha") }
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = selectedFilterEkonomi == StatusEkonomi.SUBSIDI,
-                        onClick = {
-                            selectedFilterEkonomi = if (selectedFilterEkonomi == StatusEkonomi.SUBSIDI) null else StatusEkonomi.SUBSIDI
-                        },
-                        label = { Text("Subsidi") }
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = filterHanyaBelumLunas,
-                        onClick = { filterHanyaBelumLunas = !filterHanyaBelumLunas },
-                        label = { Text("Belum Lunas") }
                     )
                 }
             }
@@ -365,9 +346,6 @@ fun WargaCardItem(
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.width(8.dp))
-                RTStatusBadge(statusIuran = warga.statusIuran)
             }
 
             Spacer(modifier = Modifier.height(10.dp))

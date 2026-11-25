@@ -11,9 +11,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +46,7 @@ import androidx.core.content.ContextCompat
 import com.example.rtconnect.ui.theme.*
 import com.example.rtconnect.util.NotificationHelper
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BerandaScreen(
     onNavigateToBayar: () -> Unit,
@@ -51,11 +57,20 @@ fun BerandaScreen(
     onNavigateToBansos: () -> Unit,
     onNavigateToNotifikasi: () -> Unit
 ) {
-    val user = MockData.currentUser
+    val currentUser by AppRepository.currentUser.collectAsState()
+    val wargaList by AppRepository.wargaList.collectAsState()
+    val currentWarga = wargaList.find {
+        it.noHp.replace(" ", "") == currentUser.phoneNumber.replace(" ", "") ||
+                it.namaLengkap.equals(currentUser.fullName, ignoreCase = true)
+    }
     val tagihanList by AppRepository.tagihanList.collectAsState()
-    val tagihan = tagihanList.find { it.status == StatusIuran.BELUM_DIBAYAR } ?: tagihanList.firstOrNull() ?: MockData.currentTagihan
+    val rawTagihan = tagihanList.find { it.status == StatusIuran.BELUM_DIBAYAR } ?: tagihanList.firstOrNull() ?: MockData.currentTagihan
+    val tagihan = if (currentWarga?.customTarifNominal != null) rawTagihan.copy(nominal = currentWarga.customTarifNominal) else rawTagihan
     val pengumumanList by AppRepository.pengumumanList.collectAsState()
+    val user = currentWarga ?: MockData.currentUser
     val context = LocalContext.current
+    val isLoading by AppRepository.isLoading.collectAsState()
+    var showKuitansiDialog by remember { mutableStateOf(false) }
 
     val notifPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -81,14 +96,20 @@ fun BerandaScreen(
         },
         containerColor = RTCanvas
     ) { paddingValues ->
-        Column(
+        PullToRefreshBox(
+            isRefreshing = isLoading,
+            onRefresh = { AppRepository.refreshAllData() },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
 
             // Greeting Section
             Text(
@@ -146,22 +167,30 @@ fun BerandaScreen(
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = "Jatuh tempo: ${tagihan.batasWaktu}",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = if (tagihan.status == StatusIuran.BELUM_LUNAS) RTRed else RTMuted,
-                            fontWeight = FontWeight.Medium
+                    if (tagihan.status != StatusIuran.LUNAS) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Jatuh tempo: ${tagihan.batasWaktu}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = if (tagihan.status == StatusIuran.BELUM_LUNAS) RTRed else RTMuted,
+                                fontWeight = FontWeight.Medium
+                            )
                         )
-                    )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    val isLunas = tagihan.status == StatusIuran.LUNAS
                     RTButton(
-                        text = if (tagihan.status == StatusIuran.BELUM_LUNAS) "Bayar sekarang" else "Lihat Bukti Pembayaran",
-                        onClick = onNavigateToBayar,
-                        icon = Icons.Outlined.Payment
+                        text = if (isLunas) "Lihat Bukti Pembayaran" else "Bayar sekarang",
+                        onClick = {
+                            if (isLunas) {
+                                showKuitansiDialog = true
+                            } else {
+                                onNavigateToBayar()
+                            }
+                        },
+                        icon = if (isLunas) Icons.Outlined.ReceiptLong else Icons.Outlined.Payment
                     )
                 }
             }
@@ -400,6 +429,14 @@ fun BerandaScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+
+        if (showKuitansiDialog) {
+            KuitansiPembayaranDialog(
+                tagihan = tagihan,
+                onDismiss = { showKuitansiDialog = false }
+            )
         }
     }
 }

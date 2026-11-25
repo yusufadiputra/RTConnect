@@ -43,8 +43,13 @@ data class Warga(
     val kategoriIuranNama: String = "Reguler",
     val statusEkonomi: StatusEkonomi = StatusEkonomi.REGULER,
     val statusAkun: StatusAkun = StatusAkun.AKTIF,
-    val statusIuran: StatusIuran = StatusIuran.LUNAS
-)
+    val statusIuran: StatusIuran = StatusIuran.LUNAS,
+    val customTarifNominal: Long? = null,
+    val catatanTarif: String? = null
+) {
+    val namaLengkap: String get() = namaKepalaKeluarga
+    val nomorKk: String get() = noKk
+}
 
 enum class StatusEkonomi {
     REGULER, SUBSIDI, PENGUSAHA

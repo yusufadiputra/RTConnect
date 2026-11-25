@@ -540,10 +540,22 @@ fun PengumumanFormDialog(
 fun KelolaBansosAdminScreen(
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val programList by AppRepository.programBansosList.collectAsState()
     val penerimaList by AppRepository.penerimaBansosList.collectAsState()
+    val wargaList by AppRepository.wargaList.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) } // 0: Program, 1: Penerima
+    var showProgramDialog by remember { mutableStateOf(false) }
+    var editingProgram by remember { mutableStateOf<ProgramBansos?>(null) }
+    var deletingProgram by remember { mutableStateOf<ProgramBansos?>(null) }
+
+    var showPenerimaDialog by remember { mutableStateOf(false) }
+    var deletingPenerima by remember { mutableStateOf<PenerimaBansos?>(null) }
+
+    LaunchedEffect(Unit) {
+        AppRepository.refreshAllData()
+    }
 
     Scaffold(
         topBar = {
@@ -553,6 +565,35 @@ fun KelolaBansosAdminScreen(
                 showBack = true,
                 onBackClick = onBackClick
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    if (selectedTab == 0) {
+                        editingProgram = null
+                        showProgramDialog = true
+                    } else {
+                        showPenerimaDialog = true
+                    }
+                },
+                containerColor = RTNavy,
+                contentColor = RTWhite,
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = RTWhite)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = if (selectedTab == 0) "Tambah Program" else "Tambah Penerima",
+                        fontWeight = FontWeight.Bold,
+                        color = RTWhite,
+                        fontSize = 13.sp
+                    )
+                }
+            }
         },
         containerColor = RTCanvas
     ) { paddingValues ->
@@ -572,15 +613,18 @@ fun KelolaBansosAdminScreen(
             if (selectedTab == 0) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 80.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(programList, key = { it.id }) { item ->
-                        Card(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, RTBorder, RoundedCornerShape(14.dp)), colors = CardDefaults.cardColors(containerColor = RTWhite)) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, RTBorder, RoundedCornerShape(14.dp)),
+                            colors = CardDefaults.cardColors(containerColor = RTWhite)
+                        ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text(text = item.namaProgram, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = RTNavy, fontSize = 15.sp), modifier = Modifier.weight(1f))
-                                    Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(RTMint).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                                    Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(RTMint).padding(horizontal = 8.dp, vertical = 3.dp)) {
                                         Text(text = item.status, style = MaterialTheme.typography.labelSmall.copy(color = RTTeal, fontWeight = FontWeight.Bold, fontSize = 10.sp))
                                     }
                                 }
@@ -588,6 +632,28 @@ fun KelolaBansosAdminScreen(
                                 Text(text = "Sasaran: ${item.kriteria}", style = MaterialTheme.typography.bodySmall.copy(color = RTMuted))
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(text = "Periode: ${item.periode} • Kuota: ${item.kuota} KK", style = MaterialTheme.typography.bodySmall.copy(color = RTText, fontWeight = FontWeight.SemiBold))
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    IconButton(onClick = { deletingProgram = item }, modifier = Modifier.size(32.dp)) {
+                                        Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Hapus", tint = RTRed, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    OutlinedButton(
+                                        onClick = {
+                                            editingProgram = item
+                                            showProgramDialog = true
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(32.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp)
+                                    ) {
+                                        Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = RTNavy)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(text = "Edit Program", fontSize = 11.sp, color = RTNavy)
+                                    }
+                                }
                             }
                         }
                     }
@@ -617,19 +683,377 @@ fun KelolaBansosAdminScreen(
                                 Text(text = "Program: ${item.programNama}", style = MaterialTheme.typography.bodySmall.copy(color = RTTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
                                 Text(text = "${item.blokRumah} • No KK: ${item.noKk}", style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 11.sp))
 
-                                if (item.statusPenyaluran != "Disalurkan") {
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Button(
-                                        onClick = { AppRepository.updateStatusPenyaluran(item.id, "Disalurkan") },
-                                        modifier = Modifier.fillMaxWidth().height(34.dp),
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite)
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { deletingPenerima = item },
+                                        modifier = Modifier.size(34.dp)
                                     ) {
-                                        Text("Tandai Telah Disalurkan", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RTWhite)
+                                        Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Hapus Penerima", tint = RTRed, modifier = Modifier.size(18.dp))
+                                    }
+
+                                    if (item.statusPenyaluran != "Disalurkan") {
+                                        Button(
+                                            onClick = { AppRepository.updateStatusPenyaluran(item.id, "Disalurkan") },
+                                            modifier = Modifier.height(34.dp),
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite)
+                                        ) {
+                                            Text("Tandai Telah Disalurkan", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RTWhite)
+                                        }
                                     }
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog Konfirmasi Hapus Program
+    if (deletingProgram != null) {
+        AlertDialog(
+            onDismissRequest = { deletingProgram = null },
+            title = { Text("Hapus Program Bansos", fontWeight = FontWeight.Bold, color = RTNavy) },
+            text = { Text("Apakah Anda yakin ingin menghapus program '${deletingProgram?.namaProgram}'?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        deletingProgram?.let { AppRepository.deleteProgramBansos(it.id) }
+                        deletingProgram = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RTRed)
+                ) {
+                    Text("Hapus", color = RTWhite)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingProgram = null }) {
+                    Text("Batal", color = RTMuted)
+                }
+            }
+        )
+    }
+
+    // Dialog Konfirmasi Hapus Penerima
+    if (deletingPenerima != null) {
+        AlertDialog(
+            onDismissRequest = { deletingPenerima = null },
+            title = { Text("Hapus Penerima Bansos", fontWeight = FontWeight.Bold, color = RTNavy) },
+            text = { Text("Apakah Anda yakin ingin menghapus '${deletingPenerima?.namaPenerima}' dari daftar penerima bansos?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        deletingPenerima?.let { AppRepository.deletePenerimaBansos(it.id) }
+                        deletingPenerima = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RTRed)
+                ) {
+                    Text("Hapus", color = RTWhite)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingPenerima = null }) {
+                    Text("Batal", color = RTMuted)
+                }
+            }
+        )
+    }
+
+    if (showProgramDialog) {
+        ProgramBansosFormDialog(
+            initial = editingProgram,
+            onDismiss = { showProgramDialog = false },
+            onSave = { p ->
+                if (editingProgram == null) {
+                    AppRepository.addProgramBansos(p)
+                } else {
+                    AppRepository.updateProgramBansos(p)
+                }
+                showProgramDialog = false
+            }
+        )
+    }
+
+    if (showPenerimaDialog) {
+        PenerimaBansosFormDialog(
+            programList = programList,
+            wargaList = wargaList,
+            onDismiss = { showPenerimaDialog = false },
+            onSave = { p ->
+                AppRepository.addPenerimaBansos(p)
+                showPenerimaDialog = false
+            }
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Dialog Form Program Bansos (Tambah / Edit)
+// -----------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProgramBansosFormDialog(
+    initial: ProgramBansos?,
+    onDismiss: () -> Unit,
+    onSave: (ProgramBansos) -> Unit
+) {
+    var namaProgram by remember { mutableStateOf(initial?.namaProgram ?: "") }
+    var periode by remember { mutableStateOf(initial?.periode ?: "November 2026") }
+    var kriteria by remember { mutableStateOf(initial?.kriteria ?: "Keluarga Prasejahtera / Lansia") }
+    var kuotaStr by remember { mutableStateOf(initial?.kuota?.toString() ?: "15") }
+    var status by remember { mutableStateOf(initial?.status ?: "Aktif") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = RTWhite)
+        ) {
+            Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+                Text(
+                    text = if (initial == null) "Tambah Program Bansos" else "Edit Program Bansos",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTNavy)
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                FormLabel("Nama Program Bansos *")
+                OutlinedTextField(
+                    value = namaProgram,
+                    onValueChange = { namaProgram = it },
+                    placeholder = { Text("Contoh: Bansos Beras & Sembako Bulanan", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                FormLabel("Sasaran / Kriteria Penerima *")
+                OutlinedTextField(
+                    value = kriteria,
+                    onValueChange = { kriteria = it },
+                    placeholder = { Text("Contoh: Warga Lansia & Subsidi RT 06", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                FormLabel("Periode Program *")
+                OutlinedTextField(
+                    value = periode,
+                    onValueChange = { periode = it },
+                    placeholder = { Text("Contoh: November 2026", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        FormLabel("Kuota (KK) *")
+                        OutlinedTextField(
+                            value = kuotaStr,
+                            onValueChange = { kuotaStr = it },
+                            placeholder = { Text("15", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        FormLabel("Status")
+                        OutlinedTextField(
+                            value = status,
+                            onValueChange = { status = it },
+                            placeholder = { Text("Aktif / Persiapan", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) { Text("Batal") }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(
+                        onClick = {
+                            if (namaProgram.isNotBlank()) {
+                                onSave(
+                                    ProgramBansos(
+                                        id = initial?.id ?: UUID.randomUUID().toString(),
+                                        namaProgram = namaProgram,
+                                        periode = periode,
+                                        kriteria = kriteria,
+                                        kuota = kuotaStr.toIntOrNull() ?: 10,
+                                        status = status
+                                    )
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite),
+                        enabled = namaProgram.isNotBlank()
+                    ) {
+                        Text(if (initial == null) "Tambah" else "Simpan", fontWeight = FontWeight.Bold, color = RTWhite)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Dialog Form Tambah Penerima Bansos (Pilih dari Warga RT)
+// -----------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PenerimaBansosFormDialog(
+    programList: List<ProgramBansos>,
+    wargaList: List<Warga>,
+    onDismiss: () -> Unit,
+    onSave: (PenerimaBansos) -> Unit
+) {
+    var selectedProgramId by remember { mutableStateOf(programList.firstOrNull()?.id ?: "") }
+    var selectedWargaId by remember { mutableStateOf(wargaList.firstOrNull()?.id ?: "") }
+
+    var expandedProgram by remember { mutableStateOf(false) }
+    var expandedWarga by remember { mutableStateOf(false) }
+
+    val selectedProgram = programList.find { it.id == selectedProgramId } ?: programList.firstOrNull()
+    val selectedWarga = wargaList.find { it.id == selectedWargaId } ?: wargaList.firstOrNull()
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = RTWhite)
+        ) {
+            Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+                Text(
+                    text = "Tambah Penerima Bansos",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTNavy)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Pilih keluarga warga RT 06 yang berhak menerima program bantuan ini:",
+                    style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 12.sp)
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Dropdown Program Bansos
+                FormLabel("Pilih Program Bansos *")
+                ExposedDropdownMenuBox(
+                    expanded = expandedProgram,
+                    onExpandedChange = { expandedProgram = !expandedProgram }
+                ) {
+                    OutlinedTextField(
+                        value = selectedProgram?.namaProgram ?: "Pilih Program",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProgram) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedProgram,
+                        onDismissRequest = { expandedProgram = false }
+                    ) {
+                        programList.forEach { prog ->
+                            DropdownMenuItem(
+                                text = { Text(prog.namaProgram, fontSize = 13.sp) },
+                                onClick = {
+                                    selectedProgramId = prog.id
+                                    expandedProgram = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Dropdown Warga
+                FormLabel("Pilih Warga / Kepala Keluarga *")
+                ExposedDropdownMenuBox(
+                    expanded = expandedWarga,
+                    onExpandedChange = { expandedWarga = !expandedWarga }
+                ) {
+                    OutlinedTextField(
+                        value = selectedWarga?.let { "${it.namaLengkap} (${it.blokRumah})" } ?: "Pilih Warga",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedWarga) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedWarga,
+                        onDismissRequest = { expandedWarga = false }
+                    ) {
+                        wargaList.forEach { w ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(w.namaLengkap, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("${w.blokRumah} • KK: ${w.nomorKk}", fontSize = 11.sp, color = RTMuted)
+                                    }
+                                },
+                                onClick = {
+                                    selectedWargaId = w.id
+                                    expandedWarga = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (selectedWarga != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(RTMint).padding(10.dp)
+                    ) {
+                        Column {
+                            Text(text = "Rincian Warga Terpilih:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RTNavy)
+                            Text(text = "Kepala Keluarga: ${selectedWarga.namaLengkap}", fontSize = 12.sp, color = RTText)
+                            Text(text = "No. KK: ${selectedWarga.nomorKk}", fontSize = 12.sp, color = RTText)
+                            Text(text = "Alamat: ${selectedWarga.blokRumah}", fontSize = 12.sp, color = RTText)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) { Text("Batal") }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(
+                        onClick = {
+                            if (selectedProgram != null && selectedWarga != null) {
+                                onSave(
+                                    PenerimaBansos(
+                                        id = UUID.randomUUID().toString(),
+                                        programId = selectedProgram.id,
+                                        programNama = selectedProgram.namaProgram,
+                                        namaPenerima = selectedWarga.namaLengkap,
+                                        noKk = selectedWarga.nomorKk,
+                                        blokRumah = selectedWarga.blokRumah,
+                                        statusPenyaluran = "Diverifikasi",
+                                        catatan = "Penerima KK: ${selectedWarga.noKk}"
+                                    )
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite),
+                        enabled = selectedProgram != null && selectedWarga != null
+                    ) {
+                        Text("Daftarkan Penerima", fontWeight = FontWeight.Bold, color = RTWhite)
                     }
                 }
             }

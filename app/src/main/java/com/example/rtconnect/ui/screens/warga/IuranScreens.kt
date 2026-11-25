@@ -34,6 +34,7 @@ import com.example.rtconnect.ui.components.RTStatusBadge
 import com.example.rtconnect.ui.components.RTTopAppBar
 import com.example.rtconnect.ui.theme.*
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,8 +42,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.example.rtconnect.data.network.DuitkuInquiryResponse
+import com.example.rtconnect.data.network.DuitkuPaymentService
 import com.example.rtconnect.util.NotificationHelper
 import com.example.rtconnect.util.WhatsAppHelper
+import kotlinx.coroutines.launch
+import java.net.URLEncoder
 import java.io.File
 
 @Composable
@@ -51,14 +56,46 @@ fun BayarIuranScreen(
     onPaymentSuccess: () -> Unit
 ) {
     val context = LocalContext.current
+    val currentUser by AppRepository.currentUser.collectAsState()
+    val wargaList by AppRepository.wargaList.collectAsState()
+    val currentWarga = wargaList.find {
+        it.noHp.replace(" ", "") == currentUser.phoneNumber.replace(" ", "") ||
+                it.namaLengkap.equals(currentUser.fullName, ignoreCase = true)
+    }
     val tagihanList by AppRepository.tagihanList.collectAsState()
-    val tagihan = tagihanList.find { it.status == StatusIuran.BELUM_DIBAYAR } ?: MockData.currentTagihan
+    val rawTagihan = tagihanList.find { it.status == StatusIuran.BELUM_DIBAYAR } ?: MockData.currentTagihan
+    val tagihan = if (currentWarga?.customTarifNominal != null) rawTagihan.copy(nominal = currentWarga.customTarifNominal) else rawTagihan
 
     var selectedMethod by remember { mutableStateOf("qris") }
     var fotoBuktiUri by remember { mutableStateOf<Uri?>(null) }
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoDialog by remember { mutableStateOf(false) }
     var showQrisSandboxDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var isLoadingDuitku by remember { mutableStateOf(false) }
+    var duitkuResponse by remember { mutableStateOf<DuitkuInquiryResponse?>(null) }
+
+    // Dialog Loading saat request ke Duitku Sandbox
+    if (isLoadingDuitku) {
+        Dialog(onDismissRequest = {}) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = RTWhite),
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(color = RTTeal)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Menghubungkan ke Duitku Sandbox...", color = RTNavy, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Membuat QRIS resmi...", color = RTMuted, fontSize = 11.sp)
+                }
+            }
+        }
+    }
 
     // Launcher: galeri foto bukti
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -131,7 +168,7 @@ fun BayarIuranScreen(
         )
     }
 
-    // Dialog Simulasi Sandbox QRIS
+    // Dialog Simulasi Sandbox QRIS Resmi Duitku
     if (showQrisSandboxDialog) {
         Dialog(onDismissRequest = { showQrisSandboxDialog = false }) {
             Card(
@@ -146,7 +183,7 @@ fun BayarIuranScreen(
                     modifier = Modifier.padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Header QRIS
+                    // Header QRIS Duitku
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -157,7 +194,7 @@ fun BayarIuranScreen(
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = "QRIS SANDBOX",
+                                text = "QRIS DUITKU SANDBOX RESMI",
                                 color = RTTeal,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -170,7 +207,7 @@ fun BayarIuranScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = "RT 06 CONNECT",
@@ -181,43 +218,54 @@ fun BayarIuranScreen(
                         )
                     )
                     Text(
-                        text = "NMID: ID1029384756 • Kas Iuran RT",
+                        text = "Merchant: ${DuitkuPaymentService.MERCHANT_CODE} • Kas RT 06",
                         style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 11.sp)
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // QR Mock Frame
-                    Box(
-                        modifier = Modifier
-                            .size(190.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .border(2.dp, RTTeal, RoundedCornerShape(16.dp))
-                            .background(Color(0xFFF9FAFB)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.QrCode2,
-                                contentDescription = "QR Code",
-                                tint = RTNavy,
-                                modifier = Modifier.size(130.dp)
-                            )
-                            Text(
-                                text = "Pindai Menggunakan E-Wallet / Mobile Banking",
-                                color = RTMuted,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 12.dp)
-                            )
-                        }
+                    if (!duitkuResponse?.reference.isNullOrEmpty()) {
+                        Text(
+                            text = "Ref: ${duitkuResponse?.reference}",
+                            style = MaterialTheme.typography.bodySmall.copy(color = RTTeal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
+
+                    // QR Frame dengan Real QR Generator dari Duitku qrString
+                    val qrString = duitkuResponse?.qrString
+                    Box(
+                        modifier = Modifier
+                            .size(200.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(2.dp, RTTeal, RoundedCornerShape(16.dp))
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!qrString.isNullOrEmpty()) {
+                            val qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=10&data=${URLEncoder.encode(qrString, "UTF-8")}"
+                            AsyncImage(
+                                model = qrUrl,
+                                contentDescription = "QRIS Duitku Sandbox",
+                                modifier = Modifier.fillMaxSize().padding(10.dp)
+                            )
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                CircularProgressIndicator(color = RTTeal, modifier = Modifier.size(32.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Menghubungkan ke Duitku QRIS...",
+                                    color = RTMuted,
+                                    fontSize = 11.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Surface(
                         color = RTCanvas,
@@ -248,9 +296,26 @@ fun BayarIuranScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    if (!duitkuResponse?.paymentUrl.isNullOrEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = {
+                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(duitkuResponse!!.paymentUrl))
+                                context.startActivity(browserIntent)
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(38.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            Icon(Icons.Outlined.OpenInBrowser, contentDescription = null, tint = RTNavy, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Buka Simulator Pembayaran Duitku", fontSize = 11.sp, color = RTNavy, fontWeight = FontWeight.Bold)
+                        }
+                    }
 
-                    // Tombol Simulasi Pembayaran Sukses Sandbox
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Tombol Simulasi Pembayaran Sukses Sandbox - teks terlihat utuh
                     Button(
                         onClick = {
                             showQrisSandboxDialog = false
@@ -258,7 +323,7 @@ fun BayarIuranScreen(
                             NotificationHelper.showPaymentNotification(
                                 context,
                                 title = "Pembayaran QRIS Berhasil!",
-                                message = "Tagihan ${tagihan.judul} sebesar Rp${String.format("%,d", tagihan.nominal).replace(',', '.')} telah lunas via QRIS."
+                                message = "Tagihan ${tagihan.judul} sebesar Rp${String.format("%,d", tagihan.nominal).replace(',', '.')} telah lunas via Duitku QRIS."
                             )
                             onPaymentSuccess()
                         },
@@ -266,16 +331,23 @@ fun BayarIuranScreen(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .defaultMinSize(minHeight = 54.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                     ) {
-                        Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = RTWhite)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Simulasikan Bayar Sukses (Sandbox)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = RTWhite
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = RTWhite, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Simulasikan Bayar Sukses (Sandbox)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = RTWhite,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -398,7 +470,7 @@ fun BayarIuranScreen(
             // Opsi 1: QRIS
             PaymentMethodItem(
                 title = "QRIS (Semua E-Wallet & M-Banking)",
-                subtitle = "GoPay, OVO, Dana, BCA, Mandiri, BRI, dll.",
+                subtitle = "GoPay, OVO, Dana, BCA, Mandiri, BRI, ShopeePay",
                 isSelected = selectedMethod == "qris",
                 onClick = { selectedMethod = "qris" }
             )
@@ -525,7 +597,28 @@ fun BayarIuranScreen(
                 enabled = isBayarEnabled,
                 onClick = {
                     if (selectedMethod == "qris") {
-                        showQrisSandboxDialog = true
+                        coroutineScope.launch {
+                            isLoadingDuitku = true
+                            val orderId = "RT06-${System.currentTimeMillis()}"
+                            val result = DuitkuPaymentService.createQrisTransaction(
+                                orderId = orderId,
+                                amount = tagihan.nominal,
+                                customerName = currentUser.fullName.ifEmpty { "Warga RT 06" },
+                                customerPhone = currentUser.phoneNumber.ifEmpty { "081234567891" },
+                                customerEmail = currentUser.email.ifEmpty { "warga@rtconnect.id" },
+                                productDetails = tagihan.judul,
+                                paymentMethod = "SP"
+                            )
+                            isLoadingDuitku = false
+                            val response = result.getOrNull()
+                            if (response != null && !response.qrString.isNullOrEmpty()) {
+                                duitkuResponse = response
+                                showQrisSandboxDialog = true
+                            } else {
+                                val errorMsg = result.exceptionOrNull()?.message ?: "Gagal mendapatkan QRIS dari Duitku"
+                                android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
                     } else {
                         // Bayar langsung ke RT dengan foto bukti -> status LUNAS terverifikasi
                         AppRepository.updateStatusTagihan(tagihan.id, StatusIuran.LUNAS)

@@ -27,6 +27,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.rtconnect.data.model.KategoriIuran
 import com.example.rtconnect.data.model.StatusIuran
 import com.example.rtconnect.data.model.TagihanIuran
+import com.example.rtconnect.data.model.Warga
 import com.example.rtconnect.data.repository.AppRepository
 import com.example.rtconnect.ui.components.AdminTopAppBar
 import com.example.rtconnect.ui.components.EmptyStateView
@@ -399,78 +400,325 @@ fun KategoriIuranScreen(
     onBackClick: () -> Unit
 ) {
     val kategoriList by AppRepository.kategoriList.collectAsState()
+    val wargaList by AppRepository.wargaList.collectAsState()
+
+    var selectedTab by remember { mutableStateOf(0) } // 0: Kategori Umum, 1: Tarif Khusus Warga
     var editingKategori by remember { mutableStateOf<KategoriIuran?>(null) }
     var showFormDialog by remember { mutableStateOf(false) }
+
+    var selectedWargaForTarif by remember { mutableStateOf<Warga?>(null) }
+    var searchWargaQuery by remember { mutableStateOf("") }
+
+    val filteredWarga = wargaList.filter {
+        it.namaLengkap.contains(searchWargaQuery, ignoreCase = true) ||
+                it.blokRumah.contains(searchWargaQuery, ignoreCase = true)
+    }
 
     Scaffold(
         topBar = {
             AdminTopAppBar(
-                title = "Kategori Iuran",
-                subtitle = "Kelola tarif iuran sampah RT 06",
+                title = "Kategori & Tarif Iuran",
+                subtitle = "Kelola tarif umum & tarif khusus per warga RT 06",
                 showBack = true,
                 onBackClick = onBackClick
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    editingKategori = null
-                    showFormDialog = true
-                },
-                containerColor = RTNavy,
-                contentColor = RTWhite,
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Tambah Kategori")
+            if (selectedTab == 0) {
+                FloatingActionButton(
+                    onClick = {
+                        editingKategori = null
+                        showFormDialog = true
+                    },
+                    containerColor = RTNavy,
+                    contentColor = RTWhite,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Tambah Kategori")
+                }
             }
         },
         containerColor = RTCanvas
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(paddingValues),
-            contentPadding = PaddingValues(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
-            item {
-                Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(RTMint).padding(14.dp)
-                ) {
-                    Text(
-                        text = "Kebijakan tarif iuran dapat disesuaikan dengan musyawarah warga RT 06 tanpa merusak riwayat transaksi yang lalu.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = RTNavy, fontSize = 12.sp)
-                    )
-                }
+            // Tab Switcher
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = RTWhite,
+                contentColor = RTNavy
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Kategori Umum (${kategoriList.size})", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Tarif Khusus Warga (${wargaList.count { it.customTarifNominal != null }})", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                )
             }
 
-            items(kategoriList, key = { it.id }) { item ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, RTBorder, RoundedCornerShape(14.dp)),
-                    colors = CardDefaults.cardColors(containerColor = RTWhite)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (selectedTab == 0) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = item.nama, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = RTNavy, fontSize = 16.sp))
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(RTMint)
+                                .padding(14.dp)
+                        ) {
                             Text(
-                                text = "Rp${String.format("%,d", item.nominal).replace(',', '.')}/bulan",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTTeal)
+                                text = "Kebijakan tarif iuran dapat disesuaikan dengan musyawarah warga RT 06 tanpa merusak riwayat transaksi yang lalu.",
+                                style = MaterialTheme.typography.bodySmall.copy(color = RTNavy, fontSize = 12.sp)
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = item.deskripsi, style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 12.sp))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            OutlinedButton(
-                                onClick = {
-                                    editingKategori = item
-                                    showFormDialog = true
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.height(32.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp)
+                    }
+
+                    items(kategoriList, key = { it.id }) { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(1.dp, RTBorder, RoundedCornerShape(14.dp)),
+                            colors = CardDefaults.cardColors(containerColor = RTWhite)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = item.nama,
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = RTNavy,
+                                            fontSize = 16.sp
+                                        )
+                                    )
+                                    Text(
+                                        text = "Rp${String.format("%,d", item.nominal).replace(',', '.')}/bulan",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = RTTeal
+                                        )
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = item.deskripsi,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = RTMuted,
+                                        fontSize = 12.sp
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            editingKategori = item
+                                            showFormDialog = true
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(32.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = RTNavy
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(text = "Ubah Tarif", fontSize = 11.sp, color = RTNavy)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Tab 1: Tarif Khusus per Warga
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(RTMint)
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "Pak RT dapat menetapkan tarif khusus secara spesifik untuk warga tertentu (misal: luas tanah berbeda, usaha rumahan, atau kesepakatan khusus) yang akan otomatis berlaku di akun warga saat login.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = RTNavy, fontSize = 12.sp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = searchWargaQuery,
+                        onValueChange = { searchWargaQuery = it },
+                        placeholder = { Text("Cari warga atau blok...", color = RTMuted, fontSize = 13.sp) },
+                        leadingIcon = { Icon(imageVector = Icons.Outlined.Search, contentDescription = null, tint = RTMuted) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = RTWhite,
+                            unfocusedContainerColor = RTWhite,
+                            focusedBorderColor = RTNavy,
+                            unfocusedBorderColor = RTBorder
+                        ),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(filteredWarga, key = { it.id }) { warga ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .border(1.dp, RTBorder, RoundedCornerShape(14.dp)),
+                                colors = CardDefaults.cardColors(containerColor = RTWhite)
                             ) {
-                                Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = RTNavy)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "Ubah Tarif", fontSize = 11.sp, color = RTNavy)
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = warga.namaLengkap,
+                                                style = MaterialTheme.typography.labelLarge.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = RTNavy,
+                                                    fontSize = 15.sp
+                                                )
+                                            )
+                                            Text(
+                                                text = "${warga.blokRumah} • KK: ${warga.nomorKk}",
+                                                style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 12.sp)
+                                            )
+                                        }
+
+                                        if (warga.customTarifNominal != null) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(RTMint)
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Tarif Khusus",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        color = RTTeal,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            val nominalTampil = warga.customTarifNominal ?: 25000L
+                                            Text(
+                                                text = "Rp${String.format("%,d", nominalTampil).replace(',', '.')}/bulan",
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (warga.customTarifNominal != null) RTTeal else RTNavy,
+                                                    fontSize = 16.sp
+                                                )
+                                            )
+                                            if (!warga.catatanTarif.isNullOrBlank()) {
+                                                Text(
+                                                    text = "Alasan: ${warga.catatanTarif}",
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        color = RTMuted,
+                                                        fontSize = 11.sp
+                                                    )
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = if (warga.customTarifNominal != null) "Tarif nominal khusus RT" else "Mengikuti tarif standar",
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        color = RTMuted,
+                                                        fontSize = 11.sp
+                                                    )
+                                                )
+                                            }
+                                        }
+
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            if (warga.customTarifNominal != null) {
+                                                TextButton(
+                                                    onClick = {
+                                                        AppRepository.setCustomTarifWarga(warga.id, null, null)
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                                ) {
+                                                    Text("Reset", color = RTRed, fontSize = 11.sp)
+                                                }
+                                            }
+                                            Button(
+                                                onClick = { selectedWargaForTarif = warga },
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.height(34.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (warga.customTarifNominal != null) RTNavy else RTTeal,
+                                                    contentColor = RTWhite
+                                                ),
+                                                contentPadding = PaddingValues(horizontal = 10.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(13.dp),
+                                                    tint = RTWhite
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = if (warga.customTarifNominal != null) "Ubah Tarif" else "Atur Tarif",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = RTWhite
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -492,6 +740,131 @@ fun KategoriIuranScreen(
                 showFormDialog = false
             }
         )
+    }
+
+    if (selectedWargaForTarif != null) {
+        AturTarifKhususDialog(
+            warga = selectedWargaForTarif!!,
+            onDismiss = { selectedWargaForTarif = null },
+            onSave = { nominal, catatan, tanggalJatuhTempo ->
+                AppRepository.setCustomTarifWarga(selectedWargaForTarif!!.id, nominal, catatan, tanggalJatuhTempo)
+                selectedWargaForTarif = null
+            }
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Dialog Atur Tarif Khusus Warga Tertentu
+// -----------------------------------------------------------------------------
+@Composable
+fun AturTarifKhususDialog(
+    warga: Warga,
+    onDismiss: () -> Unit,
+    onSave: (nominal: Long, catatan: String, tanggalJatuhTempo: Int) -> Unit
+) {
+    var nominalText by remember { mutableStateOf((warga.customTarifNominal ?: 25000L).toString()) }
+    var catatanText by remember { mutableStateOf(warga.catatanTarif ?: "") }
+    var tanggalJatuhTempoText by remember { mutableStateOf("15") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = RTWhite)
+        ) {
+            Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+                Text(
+                    text = "Atur Tarif Khusus Warga",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RTNavy)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Menetapkan nominal iuran khusus untuk keluarga ini.",
+                    style = MaterialTheme.typography.bodySmall.copy(color = RTMuted, fontSize = 12.sp)
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(RTMint)
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text(text = warga.namaLengkap, fontWeight = FontWeight.Bold, color = RTNavy)
+                        Text(text = "${warga.blokRumah} • No KK: ${warga.nomorKk}", fontSize = 12.sp, color = RTTeal)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                FormLabel("Nominal Iuran Khusus (Rp) *")
+                OutlinedTextField(
+                    value = nominalText,
+                    onValueChange = { nominalText = it.filter { char -> char.isDigit() } },
+                    placeholder = { Text("Contoh: 35000", fontSize = 13.sp) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                FormLabel("Tanggal Jatuh Tempo Pembayaran (Setiap Bulan) *")
+                OutlinedTextField(
+                    value = tanggalJatuhTempoText,
+                    onValueChange = { input ->
+                        val digits = input.filter { it.isDigit() }
+                        if (digits.isEmpty() || (digits.toIntOrNull() ?: 0) in 1..31) {
+                            tanggalJatuhTempoText = digits
+                        }
+                    },
+                    placeholder = { Text("Contoh: 15 (artinya tanggal 15 tiap bulan)", fontSize = 12.sp) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                FormLabel("Alasan / Catatan Penyesuaian:")
+                OutlinedTextField(
+                    value = catatanText,
+                    onValueChange = { catatanText = it },
+                    placeholder = { Text("Contoh: Rumah pojok hook / luas kavling lebih besar", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    minLines = 2,
+                    maxLines = 3
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+                        Text("Batal")
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(
+                        onClick = {
+                            val nominal = nominalText.toLongOrNull() ?: 25000L
+                            val tgl = tanggalJatuhTempoText.toIntOrNull() ?: 15
+                            onSave(nominal, catatanText, tgl)
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RTTeal, contentColor = RTWhite),
+                        enabled = nominalText.isNotBlank() && (nominalText.toLongOrNull() ?: 0) > 0
+                    ) {
+                        Text("Simpan Tarif", fontWeight = FontWeight.Bold, color = RTWhite)
+                    }
+                }
+            }
+        }
     }
 }
 
